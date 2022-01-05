@@ -1,0 +1,20 @@
+import torch.nn as nn
+from torch.nn.modules.activation import ReLU
+
+class Network(nn.Module):
+    def __init__(self, in_channels, out_channels, n_hidden=10, dropout=0.0):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.n_hidden = n_hidden
+
+        self.mlp = nn.Sequential(
+            nn.Linear(in_channels, n_hidden),
+            nn.Dropout(dropout),
+            # nn.BatchNorm1d(n_hidden),
+            nn.ReLU(),
+            nn.Linear(n_hidden, out_channels)
+        ) 
+
+    def forward(self, x):
+        return self.mlp(x)

@@ -1,17 +1,26 @@
 # from State import State
 from utils import *
+from Network import Network
+
+import torch
+import torch.nn.functional as F
 
 class TwoMotorsStick(object):
-    def __init__(self, net) -> None:
+    def __init__(self, jerk_loss_coeff=1.0, step_size=1e-1) -> None:
         super().__init__()
+        self.J = compute_total_J()
+        self.critical_angle = get_max_angle() * 0.9
+
+        self.network = Network(3, 4)
+        self.jerk_loss_coeff = jerk_loss_coeff 
+        self.step_size = step_size # size of step in seconds
+
         self.state = {
-            'done':False,
             'angle':0.,
             'angle_velocity':0.,
             'angle_acceleration':0.,
             'angle_jerk':0.,
         }
-        self.network = net
         self.total_reward = 0
         self.done = False
         self.success = False
@@ -20,31 +29,60 @@ class TwoMotorsStick(object):
         '''
         Predict probabilities of actions according to the current state and using model
         '''
-        # REALIZE
-        pass
-        # return np.zeros(2)
+        with torch.no_grad():
+            state_tensor = state_dict_to_tensor(self.state)
+            logits = self.network(state_tensor)
+            probas = F.softmax(logits).numpy()
+            assert len(probas) == 2
+            return probas.tolist()
+
+    def compute_angle_acceleration(self, delta_force):
+        '''
+        Computes actual angle acceleration according to difference in forces
+        '''
+        return compute_acceleration(delta_force, self.J)
 
     def update_state(self, delta_force):
         '''
         Computes the differences of parameters and updates the current state
-        Input: difference of forces of motors (float)
+        Input: difference of forces of motors (float), size of step in seconds (float)
         Returns: difference between new and old states (dict)
         '''
-        # REALIZE
-        pass
+        actual_angle_acceleration = self.compute_angle_acceleration(delta_force)
+        deltas = {}
+        new_angle = self.state['angle'] + self.state['angle_velocity'] * self.step_size
+        new_angle_velocity = self.state['angle_velocity'] + self.state['angle_acceleration'] * self.step_size
+        new_jerk = self.state['angle_acceleration'] - actual_angle_acceleration
+
+        if abs(new_angle) > self.critical_angle:
+            self.done = True
+        
+        deltas['angle'] = new_angle - self.state['angle']
+        deltas['angle_velocity'] = new_angle_velocity - self.state['angle_velocity']
+        deltas['angle_acceleration'] = actual_angle_acceleration - self.state['angle_acceleration']
+        
+        self.state['angle'] = new_angle
+        self.state['velocity'] = new_angle_velocity
+        self.state['accelaration'] = actual_angle_acceleration
+        self.state['jerk'] = new_jerk
+        return deltas
+        
 
     def get_reward(self, deltas):
         '''
         Get's reward according to the current state and its changings
         Input: difference between new and old states (dict)
+        - angle diff
+        - angle_velocity diff
+        - angle_acceleration diff
         Returns: reward (float)
         '''
-        pass
-        # REALIZE
+        loss = deltas['angle']**2 + self.jerk_loss_coeff * deltas['angle_acceleration']**2
+        return -loss
 
     def get_delta_force(self, action):
         '''
-        Computes the difference between right and left motor forces according to sinput signals
+        Computes the difference between right and left motor forces according to input signals
         '''
         return signal_to_force(action[1]) - signal_to_force(action[0])
 
@@ -58,15 +96,11 @@ class TwoMotorsStick(object):
         - done (bool)
         - additioanal info (str)
         '''
-        self.state_history.append(self.state.copy())
         action = sample_actions(self.predict_action_probs())
         delta_force = self.get_delta_force(action)
         state_difference = self.update_state(delta_force=delta_force)
         reward = self.get_reward(state_difference)
         self.total_reward += reward
 
-        # if self.state['done']:
-            # success_str = 'Success! ' if self.success else 'Fail! '
-            # info_str = 'Done! ' + success_str + 'Total reward per session: ' + str(self.total_reward)
-        return reward, action, self.state['done'], None
+        return reward, action, self.done, None
         
