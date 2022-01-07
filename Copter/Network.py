@@ -10,10 +10,11 @@ class Network(nn.Module):
 
         self.mlp = nn.Sequential(
             nn.Linear(in_channels, n_hidden),
-            nn.Dropout(dropout),
+            # nn.Dropout(dropout),
             # nn.BatchNorm1d(n_hidden),
             nn.ReLU(),
-            nn.Linear(n_hidden, out_channels)
+            nn.Linear(n_hidden, out_channels),
+            # nn.Softmax(),
         ) 
 
     def forward(self, x):

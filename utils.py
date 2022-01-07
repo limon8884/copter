@@ -16,7 +16,7 @@ def compute_total_J(print_=False):
         print(J_motor, J_reg, J_stick) 
     return J_motor + J_reg + J_stick
 
-def compute_acceleration(delta_force, J):
+def compute_acceleration_using_J(delta_force, J):
     '''
     Computes rotation acceleration
     Input: difference of forces on the right and left motors, inertia momentum
@@ -25,12 +25,11 @@ def compute_acceleration(delta_force, J):
     moment = delta_force * MOTOR_DISTANCE * 1e-3
     return moment * 10e9 / J # in SI
 
-def signal_to_force(self, signal):
+def signal_to_force(signal):
     '''
     Empirical function, which shows mapping between signal level given to motor and its resulting force
     In newtons
     '''
-    assert isinstance(signal, torch.tensor), 'signal type should be a tensor'
     scale_factor = 2. 
     signal_type = 1024. # for 10 bit signal type
     max_force = 10. # in newtons
@@ -39,7 +38,7 @@ def signal_to_force(self, signal):
     normalised_signal = 2. * constrained_signal / signal_type - 1.
     normalised_force = F.tanh(normalised_signal * scale_factor)
     min_value, max_value = F.tanh(torch.tensor(-scale_factor)), F.tanh(torch.tensor(scale_factor))
-    real_force = normalised_force - min_value / (max_value - min_value) * max_force
+    real_force = (normalised_force - min_value) / (max_value - min_value) * max_force
     return real_force
 
 
@@ -83,4 +82,5 @@ def get_cumulative_rewards(rewards,  # rewards at each step
       ans.append(cur * gamma + rewards[i])
       cur = cur * gamma + rewards[i]
     return ans[::-1]
+
 

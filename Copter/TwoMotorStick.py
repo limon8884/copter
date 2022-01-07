@@ -1,6 +1,5 @@
-# from State import State
 from utils import *
-from Network import Network
+from Copter.Network import Network
 
 import torch
 import torch.nn.functional as F
@@ -33,14 +32,13 @@ class TwoMotorsStick(object):
             state_tensor = state_dict_to_tensor(self.state)
             logits = self.network(state_tensor)
             probas = F.softmax(logits).numpy()
-            assert len(probas) == 2
             return probas.tolist()
 
     def compute_angle_acceleration(self, delta_force):
         '''
         Computes actual angle acceleration according to difference in forces
         '''
-        return compute_acceleration(delta_force, self.J)
+        return compute_acceleration_using_J(delta_force, self.J)
 
     def update_state(self, delta_force):
         '''
@@ -83,6 +81,8 @@ class TwoMotorsStick(object):
     def get_delta_force(self, action):
         '''
         Computes the difference between right and left motor forces according to input signals
+        Input: list of 2 signals (list)
+        Returns: difference of forces (float)
         '''
         return signal_to_force(action[1]) - signal_to_force(action[0])
 

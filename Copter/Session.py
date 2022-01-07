@@ -1,4 +1,4 @@
-from TwoMotorStick import TwoMotorsStick
+from Copter.TwoMotorStick import TwoMotorsStick
 
 import matplotlib.pyplot as plt
 
