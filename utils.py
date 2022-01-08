@@ -36,25 +36,27 @@ def signal_to_force(signal):
 
     constrained_signal = signal_type - F.relu(signal_type - F.relu(torch.tensor(signal)))
     normalised_signal = 2. * constrained_signal / signal_type - 1.
-    normalised_force = F.tanh(normalised_signal * scale_factor)
-    min_value, max_value = F.tanh(torch.tensor(-scale_factor)), F.tanh(torch.tensor(scale_factor))
+    normalised_force = torch.tanh(normalised_signal * scale_factor)
+    min_value, max_value = torch.tanh(torch.tensor(-scale_factor)), torch.tanh(torch.tensor(scale_factor))
     real_force = (normalised_force - min_value) / (max_value - min_value) * max_force
     return real_force
 
 
-def sample_actions(action_distribution_parameters):
+def sample_actions(*args):
     '''
     Sample signals on motors.
-    Input: list with distribution parameters. In case of normal distribution these parameters are mean and var for both motors
-    Returns: 2 values of signals
+    Input: list with distribution parameters. In case of normal distribution these parameters are means for both motors (torch.tensor) and their var (float)
+    Returns: 2 values of signals (list)
     '''
-    mean_l, var_l, mean_r, var_r = action_distribution_parameters
-    return np.random.normal(mean_l, var_l), np.random.normal(mean_r, var_r)
+    mean_l, mean_r, std = args
+    N_l = torch.distributions.normal.Normal(loc=mean_l, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
+    N_r = torch.distributions.normal.Normal(loc=mean_r, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
+    return N_l.rsample(), N_r.rsample()
 
 def state_dict_to_tensor(state_dict):
     assert isinstance(state_dict, dict)
     ans_list = [state_dict['angle'], state_dict['angle_velocity'], state_dict['angle_acceleration']]
-    return torch.tensor(ans_list).float()
+    return torch.tensor(ans_list, dtype=torch.float32)
 
 def get_max_angle():
     '''
@@ -83,4 +85,12 @@ def get_cumulative_rewards(rewards,  # rewards at each step
       cur = cur * gamma + rewards[i]
     return ans[::-1]
 
+def get_log_prob_and_entropy(actions, *args):
+    action_l, action_r = actions
+    mean_l, mean_r, std = args
+    N_l = torch.distributions.normal.Normal(loc=mean_l, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
+    N_r = torch.distributions.normal.Normal(loc=mean_r, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
+    log_prob = N_l.log_prob(action_l) + N_r.log_prob(action_r)
+    entropy = N_l.entropy() + N_r.entropy()
+    return log_prob, entropy
 

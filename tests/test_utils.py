@@ -21,8 +21,8 @@ def test_signal_to_force():
     assert signal_to_force(10000) == 10.
 
 def test_sample_actions():
-    a, b = sample_actions([1, 1, 1, 1])
-    a, b = sample_actions([-1, 1, 1, 1])
+    a, b = sample_actions(torch.tensor(1, dtype=torch.float), torch.tensor(1, dtype=torch.float), 1)
+    a, b = sample_actions(torch.tensor(-1, dtype=torch.float), torch.tensor(1, dtype=torch.float), 1)
 
 def test_state_dict_to_tensor():
     d = {

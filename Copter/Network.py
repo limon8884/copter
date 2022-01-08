@@ -18,4 +18,5 @@ class Network(nn.Module):
         ) 
 
     def forward(self, x):
-        return self.mlp(x)
+        x = self.mlp(x)
+        return x

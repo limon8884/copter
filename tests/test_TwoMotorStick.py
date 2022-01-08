@@ -14,8 +14,8 @@ def test_compute_angle_acceleration():
 
 def test_predict_action_probs():
     model = TwoMotorsStick()
-    assert isinstance(model.predict_action_probs(), list)
-    assert len(model.predict_action_probs()) == 4
+    assert isinstance(model.predict_action_probs(), torch.Tensor)
+    assert len(model.predict_action_probs()) == 2
 
 def test_compute_angle_acceleration():
     model = TwoMotorsStick()

@@ -5,14 +5,15 @@ import torch
 import torch.nn.functional as F
 
 class TwoMotorsStick(object):
-    def __init__(self, jerk_loss_coeff=1.0, step_size=1e-1) -> None:
+    def __init__(self, jerk_loss_coeff=1.0, step_size=1e-1, std=100) -> None:
         super().__init__()
         self.J = compute_total_J()
         self.critical_angle = get_max_angle() * 0.9
 
-        self.network = Network(3, 4)
+        self.network = Network(3, 2)
         self.jerk_loss_coeff = jerk_loss_coeff 
         self.step_size = step_size # size of step in seconds
+        self.std = std # variance of distribution
 
         self.state = {
             'angle':0.,
@@ -30,9 +31,9 @@ class TwoMotorsStick(object):
         '''
         with torch.no_grad():
             state_tensor = state_dict_to_tensor(self.state)
-            logits = self.network(state_tensor)
-            probas = F.softmax(logits).numpy()
-            return probas.tolist()
+            probas = self.network(state_tensor)
+            # probas = F.softmax(logits).numpy()
+            return probas
 
     def compute_angle_acceleration(self, delta_force):
         '''
@@ -96,7 +97,8 @@ class TwoMotorsStick(object):
         - done (bool)
         - additioanal info (str)
         '''
-        action = sample_actions(self.predict_action_probs())
+        means = self.predict_action_probs()
+        action = sample_actions(means[0], means[1], self.std)
         delta_force = self.get_delta_force(action)
         state_difference = self.update_state(delta_force=delta_force)
         reward = self.get_reward(state_difference)
