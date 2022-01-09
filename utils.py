@@ -64,33 +64,28 @@ def get_max_angle():
     '''
     return MAX_ANGLE / 180. * 2. * math.pi
 
-def get_cumulative_rewards(rewards,  # rewards at each step
-                           gamma=0.99  # discount for reward
-                           ):
-    """
-    Take a list of immediate rewards r(s,a) for the whole session 
-    and compute cumulative returns (a.k.a. G(s,a) in Sutton '16).
+# def get_cumulative_rewards(rewards,  # rewards at each step
+#                            gamma=0.99  # discount for reward
+#                            ):
+#     """
+#     Take a list of immediate rewards r(s,a) for the whole session 
+#     and compute cumulative returns (a.k.a. G(s,a) in Sutton '16).
     
-    G_t = r_t + gamma*r_{t+1} + gamma^2*r_{t+2} + ...
+#     G_t = r_t + gamma*r_{t+1} + gamma^2*r_{t+2} + ...
 
-    A simple way to compute cumulative rewards is to iterate from the last
-    to the first timestep and compute G_t = r_t + gamma*G_{t+1} recurrently
+#     A simple way to compute cumulative rewards is to iterate from the last
+#     to the first timestep and compute G_t = r_t + gamma*G_{t+1} recurrently
 
-    You must return an array/list of cumulative rewards with as many elements as in the initial rewards.
-    """
-    ans = []
-    cur = 0
-    for i in range(len(rewards) - 1, -1, -1):
-      ans.append(cur * gamma + rewards[i])
-      cur = cur * gamma + rewards[i]
-    return ans[::-1]
+#     You must return an array/list of cumulative rewards with as many elements as in the initial rewards.
+#     """
+#     ans = []
+#     cur = 0
+#     for i in range(len(rewards) - 1, -1, -1):
+#       ans.append(cur * gamma + rewards[i])
+#       cur = cur * gamma + rewards[i]
+#     return ans[::-1]
 
-def get_log_prob_and_entropy(actions, *args):
-    action_l, action_r = actions
-    mean_l, mean_r, std = args
-    N_l = torch.distributions.normal.Normal(loc=mean_l, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
-    N_r = torch.distributions.normal.Normal(loc=mean_r, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
-    log_prob = N_l.log_prob(action_l) + N_r.log_prob(action_r)
-    entropy = N_l.entropy() + N_r.entropy()
-    return log_prob, entropy
+def get_log_prob(actions, preds, std):
+    log_probs = -torch.square(preds - actions) / 2 - math.log((2. * math.pi)**0.5 / std)
+    return log_probs.sum(dim=-1)
 

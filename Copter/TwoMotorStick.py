@@ -5,12 +5,12 @@ import torch
 import torch.nn.functional as F
 
 class TwoMotorsStick(object):
-    def __init__(self, jerk_loss_coeff=1.0, step_size=1e-1, std=100) -> None:
+    def __init__(self, network, jerk_loss_coeff=1.0, step_size=1e-1, std=100) -> None:
         super().__init__()
         self.J = compute_total_J()
         self.critical_angle = get_max_angle() * 0.9
 
-        self.network = Network(3, 2)
+        self.network = network # Network(3, 2)
         self.jerk_loss_coeff = jerk_loss_coeff 
         self.step_size = step_size # size of step in seconds
         self.std = std # variance of distribution

@@ -34,6 +34,7 @@ def test_state_dict_to_tensor():
     tens = state_dict_to_tensor(d)
     assert tens.shape[0] == 3
 
-def test_get_cumulative_rewards():
-    assert get_cumulative_rewards([-1, 2, -3], 1.) == [-2, -1, -3]
-    assert get_cumulative_rewards([1, 2, 3])[0] < 6
+def test_get_log_prob():
+    a = torch.tensor([[1, 2], [3, 4], [5, 6]], dtype=torch.float)
+    b = torch.tensor([[-1, 2], [-3, 4], [5, -6]], dtype=torch.float)
+    get_log_prob(a, b, 1.)
