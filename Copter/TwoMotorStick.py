@@ -1,25 +1,28 @@
 from utils import *
+from utils import network_output_to_signal
 from Copter.Network import Network
 
 import torch
 import torch.nn.functional as F
 
 class TwoMotorsStick(object):
-    def __init__(self, network, jerk_loss_coeff=1.0, step_size=1e-1, std=100) -> None:
+    def __init__(self, network, target_upper_force=12, jerk_loss_coeff=1.0, step_size=1e-1, std=0.01) -> None:
         super().__init__()
         self.J = compute_total_J()
         self.critical_angle = get_max_angle() * 0.9
 
         self.network = network # Network(3, 2)
         self.jerk_loss_coeff = jerk_loss_coeff 
+        self.upper_force_loss_coeff = 1
         self.step_size = step_size # size of step in seconds
         self.std = std # variance of distribution
+        self.target_upper_force = target_upper_force
 
         self.state = {
-            'angle':0.,
-            'angle_velocity':0.,
-            'angle_acceleration':0.,
-            'angle_jerk':0.,
+            'angle':torch.tensor(0, dtype=torch.float),
+            'angle_velocity':torch.tensor(0, dtype=torch.float),
+            'angle_acceleration':torch.tensor(0, dtype=torch.float),
+            'angle_jerk':torch.tensor(0, dtype=torch.float),
         }
         self.total_reward = 0
         self.done = False
@@ -41,12 +44,13 @@ class TwoMotorsStick(object):
         '''
         return compute_acceleration_using_J(delta_force, self.J)
 
-    def update_state(self, delta_force):
+    def update_state(self, force_l, force_r):
         '''
         Computes the differences of parameters and updates the current state
-        Input: difference of forces of motors (float), size of step in seconds (float)
+        Input: forces of motors (float)
         Returns: difference between new and old states (dict)
         '''
+        delta_force = force_r - force_l
         actual_angle_acceleration = self.compute_angle_acceleration(delta_force)
         deltas = {}
         new_angle = self.state['angle'] + self.state['angle_velocity'] * self.step_size
@@ -59,11 +63,12 @@ class TwoMotorsStick(object):
         deltas['angle'] = new_angle - self.state['angle']
         deltas['angle_velocity'] = new_angle_velocity - self.state['angle_velocity']
         deltas['angle_acceleration'] = actual_angle_acceleration - self.state['angle_acceleration']
+        deltas['upper_force'] = torch.cos(self.state['angle']) * (force_l + force_r)
         
         self.state['angle'] = new_angle
-        self.state['velocity'] = new_angle_velocity
-        self.state['accelaration'] = actual_angle_acceleration
-        self.state['jerk'] = new_jerk
+        self.state['angle_velocity'] = new_angle_velocity
+        self.state['angle_acceleration'] = actual_angle_acceleration
+        self.state['angle_jerk'] = new_jerk
         return deltas
         
 
@@ -76,16 +81,20 @@ class TwoMotorsStick(object):
         - angle_acceleration diff
         Returns: reward (float)
         '''
-        loss = deltas['angle']**2 + self.jerk_loss_coeff * deltas['angle_acceleration']**2
+        loss = torch.square(deltas['angle']) + \
+            self.jerk_loss_coeff * torch.square(deltas['angle_acceleration']) + \
+                self.upper_force_loss_coeff * torch.square(deltas['upper_force'] - self.target_upper_force)
+        # proportion = (torch.square(deltas['angle']) / torch.square(deltas['upper_force'] - self.target_upper_force)).item()
+        # print(proportion)
         return -loss
 
     def get_delta_force(self, action):
         '''
         Computes the difference between right and left motor forces according to input signals
-        Input: list of 2 signals (list)
-        Returns: difference of forces (float)
+        Input: list of 2 signals (list of torch.tesnors)
+        Returns: list of 2 forces (list of torch.tesnors)
         '''
-        return signal_to_force(action[1]) - signal_to_force(action[0])
+        return signal_to_force(action[0]), signal_to_force(action[1])
 
     def step(self):
         '''
@@ -97,12 +106,14 @@ class TwoMotorsStick(object):
         - done (bool)
         - additioanal info (str)
         '''
-        means = self.predict_action_probs()
+        network_output_means = self.predict_action_probs()
+        means = network_output_to_signal(network_output_means)
         action = sample_actions(means[0], means[1], self.std)
-        delta_force = self.get_delta_force(action)
-        state_difference = self.update_state(delta_force=delta_force)
+        force_l, force_r = self.get_delta_force(action)
+        # print(force_l.item(), force_r.item())
+        state_difference = self.update_state(force_l, force_r)
         reward = self.get_reward(state_difference)
-        self.total_reward += reward
+        self.total_reward += reward.item()
 
         return reward, action, self.done, None
         

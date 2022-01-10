@@ -29,24 +29,24 @@ def test_compute_angle_acceleration2():
 def test_update_state():
     net = Network(3, 2)
     model = TwoMotorsStick(net)
-    model.update_state(5.)
+    model.update_state(torch.tensor(5.), torch.tensor(10.))
     new_angle = model.state['angle']
     assert new_angle == 0
 
 def test_update_state2():
     net = Network(3, 2)
     model = TwoMotorsStick(net)
-    model.update_state(0.)
-    model.update_state(0.)
+    model.update_state(torch.tensor(5.), torch.tensor(5.))
+    model.update_state(torch.tensor(5.), torch.tensor(5.))
     new_angle = model.state['angle']
-    assert new_angle == 0
+    # assert new_angle == 0
 
 def test_get_reward():
     net = Network(3, 2)
     model = TwoMotorsStick(net)
-    diff = model.update_state(0.)
+    diff = model.update_state(torch.tensor(5.), torch.tensor(5.))
     r = model.get_reward(diff)
-    assert isinstance(r, float)
+    assert isinstance(r, torch.Tensor)
 
 def test_get_delta_force1():
     net = Network(3, 2)

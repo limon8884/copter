@@ -16,3 +16,9 @@ CENTER_AXIS_IDENT = 21.8
 PILLAR_HEIGH = 85.
 
 MAX_ANGLE = 14.5 # in degrees
+
+SCALE_FACTOR = 2. # for signal_to_force funsction
+SIGNAL_TYPE = 1024 # for 10 bit signal type
+MAX_FORCE = 10. # max force of engine. In newtons
+
+COPTER_MASS = 1.

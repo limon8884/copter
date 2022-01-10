@@ -25,20 +25,23 @@ def compute_acceleration_using_J(delta_force, J):
     moment = delta_force * MOTOR_DISTANCE * 1e-3
     return moment * 10e9 / J # in SI
 
+def network_output_to_signal(output):
+    '''
+    Transforms output of network (from [-1, 1]) to signal signal (from 0 to 1023) 
+    '''
+    return (output + 1.) * SIGNAL_TYPE / 2.
+
+
 def signal_to_force(signal):
     '''
     Empirical function, which shows mapping between signal level given to motor and its resulting force
     In newtons
     '''
-    scale_factor = 2. 
-    signal_type = 1024. # for 10 bit signal type
-    max_force = 10. # in newtons
-
-    constrained_signal = signal_type - F.relu(signal_type - F.relu(torch.tensor(signal)))
-    normalised_signal = 2. * constrained_signal / signal_type - 1.
-    normalised_force = torch.tanh(normalised_signal * scale_factor)
-    min_value, max_value = torch.tanh(torch.tensor(-scale_factor)), torch.tanh(torch.tensor(scale_factor))
-    real_force = (normalised_force - min_value) / (max_value - min_value) * max_force
+    constrained_signal = SIGNAL_TYPE - F.relu(SIGNAL_TYPE - F.relu(torch.tensor(signal)))
+    normalised_signal = 2. * constrained_signal / SIGNAL_TYPE - 1.
+    normalised_force = torch.tanh(normalised_signal * SCALE_FACTOR)
+    min_value, max_value = torch.tanh(torch.tensor(-SCALE_FACTOR)), torch.tanh(torch.tensor(SCALE_FACTOR))
+    real_force = (normalised_force - min_value) / (max_value - min_value) * MAX_FORCE
     return real_force
 
 
@@ -49,14 +52,15 @@ def sample_actions(*args):
     Returns: 2 values of signals (list)
     '''
     mean_l, mean_r, std = args
-    N_l = torch.distributions.normal.Normal(loc=mean_l, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
-    N_r = torch.distributions.normal.Normal(loc=mean_r, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
-    return N_l.rsample(), N_r.rsample()
+    return mean_l + torch.randn(1) * std, mean_r + torch.randn(1) * std
+    # N_l = torch.distributions.normal.Normal(loc=mean_l, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
+    # N_r = torch.distributions.normal.Normal(loc=mean_r, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
+    # return N_l.rsample(), N_r.rsample()
 
-def state_dict_to_tensor(state_dict):
+def state_dict_to_tensor(state_dict, noise_std=0.0):
     assert isinstance(state_dict, dict)
     ans_list = [state_dict['angle'], state_dict['angle_velocity'], state_dict['angle_acceleration']]
-    return torch.tensor(ans_list, dtype=torch.float32)
+    return torch.tensor(ans_list, dtype=torch.float32) + torch.randn(3) * noise_std
 
 def get_max_angle():
     '''

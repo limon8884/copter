@@ -7,10 +7,14 @@ import torch.nn as nn
 import math
 
 class Session(object):
-    def __init__(self, network, gamma=0.99) -> None:
+    def __init__(self, network, gamma=0.99, jerk_loss_coeff=0.0, step_size=1e-2, std=0.01) -> None:
         super().__init__()
         self.network = network
         self.gamma = gamma # discount factor
+        self.jerk_loss_coeff = jerk_loss_coeff
+        self.step_size = step_size
+        self.std = std
+
         self.optimizer = torch.optim.Adam(self.network.parameters(), 1e-3)
         self.reset()
         
@@ -19,7 +23,7 @@ class Session(object):
         Resets the simulation. Zero all the parameters.
         '''
         self.success = None
-        self.model = TwoMotorsStick(self.network)
+        self.model = TwoMotorsStick(self.network, jerk_loss_coeff=self.jerk_loss_coeff, step_size=self.step_size, std=self.std)
         self.iteration = 0
         self.entropy = math.log(2. * self.model.std**2 * math.pi) + 1 # entropy of 2 variable gaussian
         self.state_history = []
@@ -131,14 +135,14 @@ class Session(object):
 
         return self.model.total_reward
 
-    def train_model(self, num_steps=10):
+    def train_model(self, train__steps=10, run_iterations=1000):
         '''
         Trains model for several steps
         '''
-        for step in range(num_steps):
-            self.run()
+        for step in range(train__steps):
+            self.run(run_iterations)
             reward = self.train_model_step()
-            print(reward)
+            print(reward, self.iteration)
 
 
 

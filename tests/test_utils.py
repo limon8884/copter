@@ -38,3 +38,7 @@ def test_get_log_prob():
     a = torch.tensor([[1, 2], [3, 4], [5, 6]], dtype=torch.float)
     b = torch.tensor([[-1, 2], [-3, 4], [5, -6]], dtype=torch.float)
     get_log_prob(a, b, 1.)
+
+def test_network_output_to_signal():
+    a = torch.tensor([1, 2], dtype=torch.float)
+    network_output_to_signal(a)
