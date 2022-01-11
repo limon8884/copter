@@ -7,7 +7,7 @@ import torch
 
 def test_init_network():
     net = Network(3, 2)
-    model = TwoMotorsStick(net, 0.5, 1e-2)
+    model = TwoMotorsStick(net)
     return model
 
 def test_compute_angle_acceleration():
@@ -48,19 +48,19 @@ def test_get_reward():
     r = model.get_reward(diff)
     assert isinstance(r, torch.Tensor)
 
-def test_get_delta_force1():
+def test_get_force1():
     net = Network(3, 2)
     model = TwoMotorsStick(net)
-    return model.get_delta_force([-30, 830])
+    return model.get_force([-30, 830])
 
-def test_get_delta_force2():
+def test_get_force2():
     net = Network(3, 2)
     model = TwoMotorsStick(net)
-    return model.get_delta_force([512, 830])
+    return model.get_force([512, 830])
 
 def test_step():
     net = Network(3, 2)
     model = TwoMotorsStick(net)
     ans = model.step()
-    assert len(ans) == 4
+    assert len(ans) == 5
 

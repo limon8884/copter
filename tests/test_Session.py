@@ -19,7 +19,7 @@ def test_get_cumulative_rewards():
     session.run(10)
     ans = session.get_cumulative_rewards()
     assert isinstance(ans, list)
-    assert len(ans) == 10
+    assert len(ans) == session.iteration + 1
 
 def test_train_model_step():
     net = Network(3, 2)

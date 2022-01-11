@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import math
+import numpy as np
 
 class Session(object):
     def __init__(self, network, gamma=0.99, jerk_loss_coeff=0.0, step_size=1e-2, std=0.01) -> None:
@@ -29,6 +30,7 @@ class Session(object):
         self.state_history = []
         self.action_history = []
         self.reward_history = []
+        self.out_signals_history = []
 
     def run(self, n_iters=100, reset=True):
         '''
@@ -38,7 +40,8 @@ class Session(object):
             self.reset()
         while self.iteration < n_iters:
             self.state_history.append(state_dict_to_tensor(self.model.state))
-            reward, action, done, info = self.model.step()
+            reward, action, out_signal, done, info = self.model.step()
+            self.out_signals_history.append(out_signal)
             self.action_history.append(torch.tensor(action, dtype=torch.float32))
             self.reward_history.append(reward)
             if done:
@@ -94,29 +97,49 @@ class Session(object):
         plt.title('Session signals on motors')
         plt.legend()
         plt.show()
+    
+    def plot_signals(self):
+        signal_tensor = torch.vstack(self.out_signals_history)
+        plt.xlabel('iteration')
+        plt.ylabel('signals')
+        plt.title('Session network output unnormalized')
+        plt.plot(signal_tensor[:, 0], label='left')
+        plt.plot(signal_tensor[:, 1], label='right')
+        plt.legend()
+        plt.show()
         
     def plot_states(self):
         '''
         Plots states of session
         '''
-        angle = []
-        velocity = []
-        acceleration = []
-        jerk = []
-        for d in self.state_history:
-            angle.append(d[0].item())
-            velocity.append(d[1].item())
-            acceleration.append(d[2].item())
+        # angle = []
+        # velocity = []
+        # acceleration = []
+        # jerk = []
+        # for d in self.state_history:
+        #     angle.append(d[0].item())
+        #     velocity.append(d[1].item())
+        #     acceleration.append(d[2].item())
             # jerk.append(d['jerk'])
-        plt.plot(angle, label='angle')
-        plt.plot(velocity, label='velocity')
-        plt.plot(acceleration, label='acceleration')
-        # plt.plot(jerk, label='jerk')
+        states_tensor = torch.vstack(self.state_history)
         plt.xlabel('iteration')
-        plt.ylabel('states')
-        plt.title('Session states')
-        plt.legend()
+        plt.ylabel('angle')
+        plt.title('session angle')
+        plt.plot(states_tensor[:, 0], label='angle')
         plt.show()
+        plt.xlabel('iteration')
+        plt.ylabel('angle velocity')
+        plt.title('Session velocity')
+        plt.plot(states_tensor[:, 1], label='velocity')
+        plt.show()
+        plt.xlabel('iteration')
+        plt.ylabel('angle acceleration')
+        plt.title('Session acceleration')
+        plt.plot(states_tensor[:, 2], label='acceleration')
+        plt.show()
+        # plt.plot(jerk, label='jerk')
+        # plt.legend()
+        # plt.show()
     
     def train_model_step(self):
         '''

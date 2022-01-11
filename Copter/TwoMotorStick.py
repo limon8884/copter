@@ -6,11 +6,13 @@ import torch
 import torch.nn.functional as F
 
 class TwoMotorsStick(object):
-    def __init__(self, network, target_upper_force=12, jerk_loss_coeff=1.0, step_size=1e-1, std=0.01) -> None:
+    def __init__(self, network, model_type='continious', target_upper_force=12, jerk_loss_coeff=1.0, step_size=1e-1, std=0.01) -> None:
         super().__init__()
         self.J = compute_total_J()
         self.critical_angle = get_max_angle() * 0.9
 
+        assert model_type in ['binary', 'continious']
+        self.model_type = model_type
         self.network = network # Network(3, 2)
         self.jerk_loss_coeff = jerk_loss_coeff 
         self.upper_force_loss_coeff = 1
@@ -34,9 +36,12 @@ class TwoMotorsStick(object):
         '''
         with torch.no_grad():
             state_tensor = state_dict_to_tensor(self.state)
-            probas = self.network(state_tensor)
-            # probas = F.softmax(logits).numpy()
-            return probas
+            state_tensor = add_noise(state_tensor)
+            network_out = self.network(state_tensor)
+            if self.model_type == 'continious':
+                return network_out
+            return F.softmax(network_out, dim=-1)
+            
 
     def compute_angle_acceleration(self, delta_force):
         '''
@@ -88,7 +93,7 @@ class TwoMotorsStick(object):
         # print(proportion)
         return -loss
 
-    def get_delta_force(self, action):
+    def get_force(self, action):
         '''
         Computes the difference between right and left motor forces according to input signals
         Input: list of 2 signals (list of torch.tesnors)
@@ -109,11 +114,10 @@ class TwoMotorsStick(object):
         network_output_means = self.predict_action_probs()
         means = network_output_to_signal(network_output_means)
         action = sample_actions(means[0], means[1], self.std)
-        force_l, force_r = self.get_delta_force(action)
-        # print(force_l.item(), force_r.item())
+        force_l, force_r = self.get_force(action)
         state_difference = self.update_state(force_l, force_r)
         reward = self.get_reward(state_difference)
         self.total_reward += reward.item()
 
-        return reward, action, self.done, None
+        return reward, action, means, self.done, None
         

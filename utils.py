@@ -57,10 +57,19 @@ def sample_actions(*args):
     # N_r = torch.distributions.normal.Normal(loc=mean_r, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
     # return N_l.rsample(), N_r.rsample()
 
-def state_dict_to_tensor(state_dict, noise_std=0.0):
+def add_noise(tens, noise_std=0.0):
+    '''
+    Adds noise to tensor
+    '''
+    return tens + torch.randn(tens.shape) * noise_std
+
+def state_dict_to_tensor(state_dict):
+    '''
+    Transforms dict of state with 'angle', 'angle_velocity', 'angle_acceleration' keys to tensor of shape (3,)
+    '''
     assert isinstance(state_dict, dict)
     ans_list = [state_dict['angle'], state_dict['angle_velocity'], state_dict['angle_acceleration']]
-    return torch.tensor(ans_list, dtype=torch.float32) + torch.randn(3) * noise_std
+    return torch.tensor(ans_list, dtype=torch.float32) 
 
 def get_max_angle():
     '''
