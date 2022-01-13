@@ -17,8 +17,12 @@ PILLAR_HEIGH = 85.
 
 MAX_ANGLE = 14.5 # in degrees
 
-SCALE_FACTOR = 2. # for signal_to_force funsction
-SIGNAL_TYPE = 1024 # for 10 bit signal type
-MAX_FORCE = 10. # max force of engine. In newtons
+MIN_SIGNAL = 1100
+MAX_SIGNAL = 2300
+SIGNAL_COEF = 4.548e-3
+SIGNAL_INTERCEPT = -4.562
+# SCALE_FACTOR = 2. # for signal_to_force funsction
+# SIGNAL_TYPE = 1024 # for 10 bit signal type
+# MAX_FORCE = 10. # max force of engine. In newtons
 
-COPTER_MASS = 1.
+# COPTER_MASS = 1.

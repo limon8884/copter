@@ -27,9 +27,9 @@ def compute_acceleration_using_J(delta_force, J):
 
 def network_output_to_signal(output):
     '''
-    Transforms output of network (from [-1, 1]) to signal signal (from 0 to 1023) 
+    Transforms output of network (from [-1, 1]) to signal range (from MIN_SIGNAL to MAX_SIGNAL) 
     '''
-    return (output + 1.) * SIGNAL_TYPE / 2.
+    return (output + 1.) * (MAX_SIGNAL - MIN_SIGNAL) / 2. + MIN_SIGNAL
 
 
 def signal_to_force(signal):
@@ -37,19 +37,19 @@ def signal_to_force(signal):
     Empirical function, which shows mapping between signal level given to motor and its resulting force
     In newtons
     '''
-    constrained_signal = SIGNAL_TYPE - F.relu(SIGNAL_TYPE - F.relu(torch.tensor(signal)))
-    normalised_signal = 2. * constrained_signal / SIGNAL_TYPE - 1.
-    normalised_force = torch.tanh(normalised_signal * SCALE_FACTOR)
-    min_value, max_value = torch.tanh(torch.tensor(-SCALE_FACTOR)), torch.tanh(torch.tensor(SCALE_FACTOR))
-    real_force = (normalised_force - min_value) / (max_value - min_value) * MAX_FORCE
-    return real_force
+    # constrained_signal = SIGNAL_TYPE - F.relu(SIGNAL_TYPE - F.relu(torch.tensor(signal)))
+    # normalised_signal = 2. * constrained_signal / SIGNAL_TYPE - 1.
+    # normalised_force = torch.tanh(normalised_signal * SCALE_FACTOR)
+    # min_value, max_value = torch.tanh(torch.tensor(-SCALE_FACTOR)), torch.tanh(torch.tensor(SCALE_FACTOR))
+    # real_force = (normalised_force - min_value) / (max_value - min_value) * MAX_FORCE
+    return signal * SIGNAL_COEF + SIGNAL_INTERCEPT
 
 
 def sample_actions(*args):
     '''
     Sample signals on motors.
     Input: list with distribution parameters. In case of normal distribution these parameters are means for both motors (torch.tensor) and their var (float)
-    Returns: 2 values of signals (list)
+    Returns: 2 values of signals (list of tensors)
     '''
     mean_l, mean_r, std = args
     return mean_l + torch.randn(1) * std, mean_r + torch.randn(1) * std
@@ -76,27 +76,6 @@ def get_max_angle():
     Returns max angle in radians, in which the game is done
     '''
     return MAX_ANGLE / 180. * 2. * math.pi
-
-# def get_cumulative_rewards(rewards,  # rewards at each step
-#                            gamma=0.99  # discount for reward
-#                            ):
-#     """
-#     Take a list of immediate rewards r(s,a) for the whole session 
-#     and compute cumulative returns (a.k.a. G(s,a) in Sutton '16).
-    
-#     G_t = r_t + gamma*r_{t+1} + gamma^2*r_{t+2} + ...
-
-#     A simple way to compute cumulative rewards is to iterate from the last
-#     to the first timestep and compute G_t = r_t + gamma*G_{t+1} recurrently
-
-#     You must return an array/list of cumulative rewards with as many elements as in the initial rewards.
-#     """
-#     ans = []
-#     cur = 0
-#     for i in range(len(rewards) - 1, -1, -1):
-#       ans.append(cur * gamma + rewards[i])
-#       cur = cur * gamma + rewards[i]
-#     return ans[::-1]
 
 def get_log_prob(actions, preds, std):
     log_probs = -torch.square(preds - actions) / 2 - math.log((2. * math.pi)**0.5 / std)

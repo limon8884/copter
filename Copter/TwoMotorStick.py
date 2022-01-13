@@ -1,6 +1,7 @@
 from utils import *
 from utils import network_output_to_signal
 from Copter.Network import Network
+from model_parameters import MIN_SIGNAL, MAX_SIGNAL
 
 import torch
 import torch.nn.functional as F
@@ -52,7 +53,7 @@ class TwoMotorsStick(object):
     def update_state(self, force_l, force_r):
         '''
         Computes the differences of parameters and updates the current state
-        Input: forces of motors (float)
+        Input: forces of motors (list of 2 tensors)
         Returns: difference between new and old states (dict)
         '''
         delta_force = force_r - force_l
@@ -69,6 +70,11 @@ class TwoMotorsStick(object):
         deltas['angle_velocity'] = new_angle_velocity - self.state['angle_velocity']
         deltas['angle_acceleration'] = actual_angle_acceleration - self.state['angle_acceleration']
         deltas['upper_force'] = torch.cos(self.state['angle']) * (force_l + force_r)
+        min_force, max_force = torch.tensor(signal_to_force(MIN_SIGNAL)), torch.tensor(signal_to_force(MAX_SIGNAL))
+        deltas['over_force'] = F.relu(min_force - force_l) + \
+            F.relu(min_force - force_l) + \
+                F.relu(force_l - max_force) + \
+                    F.relu(force_r - max_force)
         
         self.state['angle'] = new_angle
         self.state['angle_velocity'] = new_angle_velocity
@@ -88,7 +94,8 @@ class TwoMotorsStick(object):
         '''
         loss = torch.square(deltas['angle']) + \
             self.jerk_loss_coeff * torch.square(deltas['angle_acceleration']) + \
-                self.upper_force_loss_coeff * torch.square(deltas['upper_force'] - self.target_upper_force)
+                self.upper_force_loss_coeff * torch.square(deltas['upper_force'] - self.target_upper_force) +\
+                    deltas['over_force'] * 1000.
         # proportion = (torch.square(deltas['angle']) / torch.square(deltas['upper_force'] - self.target_upper_force)).item()
         # print(proportion)
         return -loss
