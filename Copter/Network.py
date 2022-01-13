@@ -12,6 +12,8 @@ class Network(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(n_hidden, n_hidden),
             nn.LeakyReLU(),
+            nn.Linear(n_hidden, n_hidden),
+            nn.LeakyReLU(),
             # nn.Dropout(dropout),
             # nn.BatchNorm1d(n_hidden),
             # nn.ReLU(),

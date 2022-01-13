@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 
 class TwoMotorsStick(object):
-    def __init__(self, network, model_type='binary', target_upper_force=0.0, jerk_loss_coeff=1.0, step_size=1e-1, std=0.01) -> None:
+    def __init__(self, network, model_type='binary', step_size=1e-3) -> None:
         super().__init__()
         self.J = compute_total_J()
         self.critical_angle = get_max_angle() * 0.9
@@ -21,11 +21,12 @@ class TwoMotorsStick(object):
         self.model_type = model_type
         self.network = network # Network(3, 2)
         self.reaction_speed = 10
-        self.jerk_loss_coeff = jerk_loss_coeff 
+        self.max_reward = 200
+        self.over_force_loss_coeff = 1
         self.upper_force_loss_coeff = 1
         self.step_size = step_size # size of step in seconds
-        self.std = std # variance of distribution
-        self.target_upper_force = target_upper_force
+        # self.std = 0.01 # variance of distribution
+        self.target_upper_force = 0.0
 
         self.state = {
             'angle':torch.tensor(0, dtype=torch.float),
@@ -107,13 +108,15 @@ class TwoMotorsStick(object):
         - angle_acceleration diff
         Returns: reward (float)
         '''
-        loss = torch.square(deltas['angle']) + \
-            self.jerk_loss_coeff * torch.square(deltas['angle_acceleration']) + \
-                self.upper_force_loss_coeff * torch.square(deltas['upper_force'] - self.target_upper_force) +\
-                    deltas['over_force'] * 1000.
+        loss = abs(deltas['angle']) + \
+                self.over_force_loss_coeff * deltas['over_force'] +\
+                    0.1 * abs(deltas['angle_velocity'])
+            # self.upper_force_loss_coeff * abs(deltas['upper_force'] - self.target_upper_force) + \
+
         # proportion = (torch.square(deltas['angle']) / torch.square(deltas['upper_force'] - self.target_upper_force)).item()
         # print(proportion)
-        return -loss
+        assert self.max_reward > loss
+        return self.max_reward - loss
 
     def get_force(self, action):
         '''

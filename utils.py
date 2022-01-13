@@ -30,6 +30,10 @@ def network_output_to_signal(output):
     '''
     Transforms output of network (from [-1, 1]) to signal range (from MIN_SIGNAL to MAX_SIGNAL) 
     '''
+    if output.item() < -1:
+        output = torch.tensor(-1)
+    if output.item() > 1:
+        output = torch.tensor(1)
     return (output + 1.) * (MAX_SIGNAL - MIN_SIGNAL) / 2. + MIN_SIGNAL
 
 

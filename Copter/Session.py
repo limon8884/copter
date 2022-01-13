@@ -19,6 +19,7 @@ class Session(object):
         self.entropy_coef = 0.01
 
         self.optimizer = torch.optim.Adam(self.network.parameters(), 1e-3)
+        self.train_log_rewards = []
         self.reset()
         
     def reset(self):
@@ -26,9 +27,9 @@ class Session(object):
         Resets the simulation. Zero all the parameters.
         '''
         self.success = None
-        self.model = TwoMotorsStick(self.network, jerk_loss_coeff=self.jerk_loss_coeff, step_size=self.step_size, std=self.std)
+        self.model = TwoMotorsStick(self.network, step_size=self.step_size)
         self.iteration = 0
-        self.entropy = math.log(2. * self.model.std**2 * math.pi) + 1 # entropy of 2 variable gaussian
+        # self.entropy = math.log(2. * self.model.std**2 * math.pi) + 1 # entropy of 2 variable gaussian
         self.state_history = []
         self.action_history_left = []
         self.action_history_right = []
@@ -178,7 +179,8 @@ class Session(object):
         for step in range(train__steps):
             self.run(run_iterations)
             reward = self.train_model_step()
-            print(reward, self.iteration)
+            self.train_log_rewards.append(reward)
+            print(step, reward, self.iteration)
 
 
 
