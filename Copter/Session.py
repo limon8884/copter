@@ -1,9 +1,10 @@
 from Copter.TwoMotorStick import TwoMotorsStick
-from utils import state_dict_to_tensor, get_log_prob
+from utils import *
 
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
 import numpy as np
 
@@ -15,6 +16,7 @@ class Session(object):
         self.jerk_loss_coeff = jerk_loss_coeff
         self.step_size = step_size
         self.std = std
+        self.entropy_coef = 0.01
 
         self.optimizer = torch.optim.Adam(self.network.parameters(), 1e-3)
         self.reset()
@@ -28,7 +30,8 @@ class Session(object):
         self.iteration = 0
         self.entropy = math.log(2. * self.model.std**2 * math.pi) + 1 # entropy of 2 variable gaussian
         self.state_history = []
-        self.action_history = []
+        self.action_history_left = []
+        self.action_history_right = []
         self.reward_history = []
         self.out_signals_history = []
 
@@ -40,9 +43,10 @@ class Session(object):
             self.reset()
         while self.iteration < n_iters:
             self.state_history.append(state_dict_to_tensor(self.model.state))
-            reward, action, out_signal, done, info = self.model.step()
-            self.out_signals_history.append(out_signal)
-            self.action_history.append(torch.tensor(action, dtype=torch.float32))
+            reward, action, done, info = self.model.step()
+            # self.out_signals_history.append(out_signal)
+            self.action_history_left.append(torch.tensor(action[0], dtype=torch.float32))
+            self.action_history_right.append(torch.tensor(action[1], dtype=torch.float32))
             self.reward_history.append(reward)
             if done:
                 self.success = False
@@ -81,22 +85,22 @@ class Session(object):
         plt.title('Session rewards')
         plt.show()
 
-    def plot_actions(self):
-        '''
-        Plots actions (signals on motors) of session
-        '''
-        signals_1 = []
-        signals_2 = []
-        for s1, s2 in self.action_history:
-            signals_1.append(s1)
-            signals_2.append(s2)
-        plt.plot(signals_1, label='left')
-        plt.plot(signals_2, label='right')
-        plt.xlabel('iteration')
-        plt.ylabel('signal level')
-        plt.title('Session signals on motors')
-        plt.legend()
-        plt.show()
+    # def plot_actions(self):
+    #     '''
+    #     Plots actions (signals on motors) of session
+    #     '''
+    #     signals_1 = []
+    #     signals_2 = []
+    #     for s1, s2 in self.action_history:
+    #         signals_1.append(s1)
+    #         signals_2.append(s2)
+    #     plt.plot(signals_1, label='left')
+    #     plt.plot(signals_2, label='right')
+    #     plt.xlabel('iteration')
+    #     plt.ylabel('signal level')
+    #     plt.title('Session signals on motors')
+    #     plt.legend()
+    #     plt.show()
     
     def plot_signals(self):
         signal_tensor = torch.vstack(self.out_signals_history)
@@ -146,13 +150,22 @@ class Session(object):
         Makes a step of model training
         '''
         states_tensor = torch.vstack(self.state_history)
-        actions_tensor = torch.vstack(self.action_history)
+        actions_left_tensor = torch.vstack(self.action_history_left)
+        actions_right_tensor = torch.vstack(self.action_history_right)
         cumulative_rewards_tensor = torch.tensor(self.get_cumulative_rewards(), dtype=torch.float32)
 
-        preds = self.network(states_tensor)
-        log_prob = get_log_prob(actions_tensor, preds, self.model.std)
+        logits = self.network(states_tensor)
+        left_log_logits = F.log_softmax(logits[:, :2], -1)
+        right_log_logits = F.log_softmax(logits[:, 2:], -1)
+        log_probs_for_actions = torch.sum(left_log_logits * to_one_hot(actions_left_tensor, 2) + \
+            right_log_logits * to_one_hot(actions_right_tensor, 2), dim=1) 
+        
+        entropy = (torch.exp(log_probs_for_actions) * log_probs_for_actions).sum()
+        loss = -(log_probs_for_actions * cumulative_rewards_tensor).mean() - entropy * self.entropy_coef
 
-        loss = -(log_prob * cumulative_rewards_tensor).mean()
+        # log_prob = get_log_prob(actions_tensor, preds, self.model.std)
+        # loss = -(log_prob * cumulative_rewards_tensor).mean()
+        self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 

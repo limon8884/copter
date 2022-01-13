@@ -1,4 +1,5 @@
 from model_parameters import *
+from model_parameters import SIGNAL_COEF
 
 import numpy as np
 import math
@@ -45,14 +46,22 @@ def signal_to_force(signal):
     return signal * SIGNAL_COEF + SIGNAL_INTERCEPT
 
 
-def sample_actions(*args):
+def sample_actions(binary=True, *args):
     '''
     Sample signals on motors.
-    Input: list with distribution parameters. In case of normal distribution these parameters are means for both motors (torch.tensor) and their var (float)
+    Input: list with distribution parameters. 
+    In case of continious model these parameters are means for both motors (torch.tensor) and their var (float)
+    In case of binary model these are 2 Bernulli distributions (2 numpy arrays)
     Returns: 2 values of signals (list of tensors)
     '''
-    mean_l, mean_r, std = args
-    return mean_l + torch.randn(1) * std, mean_r + torch.randn(1) * std
+    if binary:
+        action_probs_l, action_probs_r = args
+        a_l = np.random.choice(2, 1, p=action_probs_l.numpy())[0]
+        a_r = np.random.choice(2, 1, p=action_probs_r.numpy())[0]
+        return torch.tensor(a_l), torch.tensor(a_r)
+    else:
+        mean_l, mean_r, std = args
+        return mean_l + torch.randn(1) * std, mean_r + torch.randn(1) * std
     # N_l = torch.distributions.normal.Normal(loc=mean_l, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
     # N_r = torch.distributions.normal.Normal(loc=mean_r, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
     # return N_l.rsample(), N_r.rsample()
@@ -80,4 +89,11 @@ def get_max_angle():
 def get_log_prob(actions, preds, std):
     log_probs = -torch.square(preds - actions) / 2 - math.log((2. * math.pi)**0.5 / std)
     return log_probs.sum(dim=-1)
+
+def to_one_hot(y_tensor, ndims):
+    """ helper: take an integer vector and convert it to 1-hot matrix. """
+    y_tensor = y_tensor.type(torch.LongTensor).view(-1, 1)
+    y_one_hot = torch.zeros(
+        y_tensor.size()[0], ndims).scatter_(1, y_tensor, 1)
+    return y_one_hot
 
