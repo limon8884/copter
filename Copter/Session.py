@@ -9,22 +9,24 @@ import math
 import numpy as np
 
 class Session(object):
-    def __init__(self, network, gamma=0.99, jerk_loss_coeff=0.0, step_size=1e-2, std=0.01) -> None:
+    '''
+    This is a model for running simulations and training network in TwoMotorsStick envinronment.
+    This have all the logs too.
+    '''
+    def __init__(self, network, gamma=0.99, step_size=1e-2) -> None:
         super().__init__()
-        self.network = network
+        self.network = network 
         self.gamma = gamma # discount factor
-        self.jerk_loss_coeff = jerk_loss_coeff
-        self.step_size = step_size
-        self.std = std
-        self.entropy_coef = 0.01
+        self.step_size = step_size # time interval for iteration
+        self.entropy_coef = 0.01 # for loss functions
 
         self.optimizer = torch.optim.Adam(self.network.parameters(), 1e-3)
-        self.train_log_rewards = []
-        self.reset()
+        self.train_log_rewards = [] # log of rewards for all steps (not session iterations)
+        self.reset() # resets environment
         
     def reset(self):
         '''
-        Resets the simulation. Zero all the parameters.
+        Resets the simulation environment. Zero all the parameters except network weights.
         '''
         self.success = None
         self.model = TwoMotorsStick(self.network, step_size=self.step_size)
@@ -38,7 +40,7 @@ class Session(object):
 
     def run(self, n_iters=100, reset=True):
         '''
-        Runs session. Simulates a situation for n_iter steps and record all the states and calculates the results
+        Runs session. Simulates a situation for n_iter steps and record all the states, actions, rewards.
         '''
         if reset:
             self.reset()
@@ -58,6 +60,8 @@ class Session(object):
 
     def get_cumulative_rewards(self):
         """
+        Computes cumulative rewards for session.
+
         Take a list of immediate rewards r(s,a) for the whole session 
         and compute cumulative returns (a.k.a. G(s,a) in Sutton '16).
         
@@ -104,6 +108,9 @@ class Session(object):
     #     plt.show()
     
     def plot_signals(self):
+        '''
+        Depriciated
+        '''
         signal_tensor = torch.vstack(self.out_signals_history)
         plt.xlabel('iteration')
         plt.ylabel('signals')
@@ -115,7 +122,7 @@ class Session(object):
         
     def plot_states(self):
         '''
-        Plots states of session
+        Plots states of session.
         '''
         # angle = []
         # velocity = []
@@ -172,15 +179,16 @@ class Session(object):
 
         return self.model.total_reward
 
-    def train_model(self, train__steps=10, run_iterations=1000):
+    def train_model(self, train__steps=10, run_iterations=100, print_=True):
         '''
-        Trains model for several steps
+        Trains model for several steps.
         '''
         for step in range(train__steps):
             self.run(run_iterations)
             reward = self.train_model_step()
             self.train_log_rewards.append(reward)
-            print(step, reward, self.iteration)
+            if print_:
+                print(step, reward, self.iteration)
 
 
 

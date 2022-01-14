@@ -19,9 +19,9 @@ def test_signal_to_force():
     a = signal_to_force(torch.tensor(1000))
 
 def test_sample_actions():
-    a, b = sample_actions(False, torch.tensor(1, dtype=torch.float), torch.tensor(1, dtype=torch.float), 1)
-    a, b = sample_actions(False, torch.tensor(-1, dtype=torch.float), torch.tensor(1, dtype=torch.float), 1)
-    a, b = sample_actions(True, torch.tensor([0.3, 0.7]), torch.tensor([0.3, 0.7]))
+    # a, b = sample_actions(False, torch.tensor(1, dtype=torch.float), torch.tensor(1, dtype=torch.float), 1)
+    # a, b = sample_actions(False, torch.tensor(-1, dtype=torch.float), torch.tensor(1, dtype=torch.float), 1)
+    a, b = sample_actions(np.array([0.3, 0.7]), np.array([0.3, 0.7]))
 
 def test_state_dict_to_tensor():
     d = {
@@ -38,6 +38,6 @@ def test_get_log_prob():
     b = torch.tensor([[-1, 2], [-3, 4], [5, -6]], dtype=torch.float)
     get_log_prob(a, b, 1.)
 
-def test_network_output_to_signal():
-    a = torch.tensor([1, 2], dtype=torch.float)
-    network_output_to_signal(a)
+# def test_network_output_to_signal():
+#     a = torch.tensor([1, 2], dtype=torch.float)
+#     network_output_to_signal(a)

@@ -35,34 +35,34 @@ def test_compute_angle_acceleration2():
 def test_update_state():
     net = Network(3, 4)
     model = TwoMotorsStick(net)
-    model.update_state(torch.tensor(5.), torch.tensor(10.))
+    model.update_state((1, 0))
     new_angle = model.state['angle']
     assert new_angle == 0
 
 def test_update_state2():
     net = Network(3, 4)
     model = TwoMotorsStick(net)
-    model.update_state(torch.tensor(5.), torch.tensor(5.))
-    model.update_state(torch.tensor(5.), torch.tensor(5.))
+    model.update_state((1, 1))
+    model.update_state((0, 0))
     new_angle = model.state['angle']
-    # assert new_angle == 0
+    assert new_angle == 0
 
 def test_get_reward():
     net = Network(3, 4)
     model = TwoMotorsStick(net)
-    diff = model.update_state(torch.tensor(5.), torch.tensor(5.))
+    diff = model.update_state((1, 1))
     r = model.get_reward(diff)
-    assert isinstance(r, torch.Tensor)
+    assert isinstance(r, float)
 
-def test_get_force1():
-    net = Network(3, 4)
-    model = TwoMotorsStick(net)
-    return model.get_force([-30, 830])
+# def test_get_force1():
+#     net = Network(3, 4)
+#     model = TwoMotorsStick(net)
+#     return model.get_force([-30, 830])
 
-def test_get_force2():
-    net = Network(3, 4)
-    model = TwoMotorsStick(net)
-    return model.get_force([512, 830])
+# def test_get_force2():
+#     net = Network(3, 4)
+#     model = TwoMotorsStick(net)
+#     return model.get_force([512, 830])
 
 def test_step():
     # net = Network(3, 2)

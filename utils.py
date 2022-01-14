@@ -5,8 +5,9 @@ import numpy as np
 import math
 import torch
 import torch.nn.functional as F
+from typing import Tuple, Type, Dict
 
-def compute_total_J(print_=False):
+def compute_total_J(print_=False) -> float:
     '''
     Computes inertia momentum of system according to model parameters
     '''
@@ -17,7 +18,7 @@ def compute_total_J(print_=False):
         print(J_motor, J_reg, J_stick) 
     return J_motor + J_reg + J_stick
 
-def compute_acceleration_using_J(delta_force, J):
+def compute_acceleration_using_J(delta_force: float, J: float) -> float:
     '''
     Computes rotation acceleration
     Input: difference of forces on the right and left motors, inertia momentum
@@ -37,7 +38,7 @@ def network_output_to_signal(output):
     return (output + 1.) * (MAX_SIGNAL - MIN_SIGNAL) / 2. + MIN_SIGNAL
 
 
-def signal_to_force(signal):
+def signal_to_force(signal: float) -> float:
     '''
     Empirical function, which shows mapping between signal level given to motor and its resulting force
     In newtons
@@ -50,22 +51,21 @@ def signal_to_force(signal):
     return signal * SIGNAL_COEF + SIGNAL_INTERCEPT
 
 
-def sample_actions(binary=True, *args):
+def sample_actions(action_probs_l: np.ndarray, action_probs_r: np.ndarray) -> Tuple[int]:
     '''
     Sample signals on motors.
-    Input: list with distribution parameters. 
+    Input: list of np.arrays. Distribution parameters. 
     In case of continious model these parameters are means for both motors (torch.tensor) and their var (float)
     In case of binary model these are 2 Bernulli distributions (2 numpy arrays)
     Returns: 2 values of signals (list of tensors)
     '''
-    if binary:
-        action_probs_l, action_probs_r = args
-        a_l = np.random.choice(2, 1, p=action_probs_l.numpy())[0]
-        a_r = np.random.choice(2, 1, p=action_probs_r.numpy())[0]
-        return torch.tensor(a_l), torch.tensor(a_r)
-    else:
-        mean_l, mean_r, std = args
-        return mean_l + torch.randn(1) * std, mean_r + torch.randn(1) * std
+    # if binary:
+    a_l = np.random.choice(2, 1, p=action_probs_l)[0]
+    a_r = np.random.choice(2, 1, p=action_probs_r)[0]
+    return a_l, a_r
+    # else:
+    #     mean_l, mean_r, std = args
+    #     return mean_l + torch.randn(1) * std, mean_r + torch.randn(1) * std
     # N_l = torch.distributions.normal.Normal(loc=mean_l, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
     # N_r = torch.distributions.normal.Normal(loc=mean_r, scale=torch.tensor(std, requires_grad=False, dtype=torch.float32))
     # return N_l.rsample(), N_r.rsample()
@@ -76,13 +76,13 @@ def add_noise(tens, noise_std=0.0):
     '''
     return tens + torch.randn(tens.shape) * noise_std
 
-def state_dict_to_tensor(state_dict):
+def state_dict_to_tensor(state_dict: Dict[str, float]) -> torch.Tensor:
     '''
     Transforms dict of state with 'angle', 'angle_velocity', 'angle_acceleration' keys to tensor of shape (3,)
     '''
     assert isinstance(state_dict, dict)
     ans_list = [state_dict['angle'], state_dict['angle_velocity'], state_dict['angle_acceleration']]
-    return torch.tensor(ans_list, dtype=torch.float32) 
+    return torch.tensor(ans_list, dtype=torch.float) 
 
 def get_max_angle():
     '''
@@ -94,7 +94,7 @@ def get_log_prob(actions, preds, std):
     log_probs = -torch.square(preds - actions) / 2 - math.log((2. * math.pi)**0.5 / std)
     return log_probs.sum(dim=-1)
 
-def to_one_hot(y_tensor, ndims):
+def to_one_hot(y_tensor: torch.Tensor, ndims: int) -> torch.Tensor:
     """ helper: take an integer vector and convert it to 1-hot matrix. """
     y_tensor = y_tensor.type(torch.LongTensor).view(-1, 1)
     y_one_hot = torch.zeros(
