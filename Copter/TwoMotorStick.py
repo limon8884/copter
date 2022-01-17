@@ -5,7 +5,7 @@ from model_parameters import MIN_SIGNAL, MAX_SIGNAL
 
 import torch
 import torch.nn.functional as F
-from typing import Tuple, Dict, Type
+from typing import List, Tuple, Dict, Type
 
 class TwoMotorsStick(object):
     '''
@@ -13,27 +13,28 @@ class TwoMotorsStick(object):
     A model of stick with 2 motors.
     If model_type is binary, every iteration each motor signal is increased or decreased on reaction_speed.
     '''
-    def __init__(self, network, model_type='binary', step_size=1e-3) -> None:
+    def __init__(self, network, **kwargs) -> None:
         super().__init__()
         self.J = compute_total_J() # computes inertia moment of model
         self.critical_angle = get_max_angle() * 0.9 # with angle is treated as done
-
-        assert model_type in ['binary', 'continious'] # continious is depritiated
         assert network.in_channels == 3 # state tensor size
-        if model_type == 'continious':
-            assert network.out_channels == 2
-        else:
-            assert network.out_channels == 4 
-        self.model_type = model_type
+        assert network.out_channels == 4 
         self.network = network 
-        self.reaction_speed = 10 # the size of step of signal in binary model
-        self.max_reward = 200 # maximum reward for iteration
-        self.over_force_loss_coeff = 1 # coef before punish for inapropriate force (signals out of range [800, 2300])
-        self.upper_force_loss_coeff = 1 # coef before punish for missing total force on y-axis. target_force is a target.
-        self.step_size = step_size # time length of iteration in seconds
-        # self.std = 0.01 # variance of distribution
-        self.target_upper_force = 0.0 # total force on y-axis which wanted to be achieved and stated.
+        self.model_type = 'binary' # continious type of model is depritiated
 
+        self.reaction_speed = kwargs['reaction_speed'] 
+        self.max_reward = kwargs['max_reward']
+        self.angle_loss_coeff = kwargs['angle_loss_coeff'] 
+        self.over_force_loss_coeff = kwargs['over_force_loss_coeff']
+        self.upper_force_loss_coeff = kwargs['upper_force_loss_coeff']
+        self.step_size = kwargs['step_size'] 
+        self.target_upper_force = kwargs['target_upper_force'] 
+        self.reset()
+
+    def reset(self):
+        '''
+        Set initial parameters of model
+        '''
         # state dict. Is not a state tensor, which is given to network. Have mode complete info about env state.
         self.state = { 
             'angle':0.0,
@@ -112,23 +113,17 @@ class TwoMotorsStick(object):
         - angle_acceleration diff
         Returns: reward (float)
         '''
-        loss = abs(deltas['angle'])**2 + \
-            self.upper_force_loss_coeff * abs(deltas['upper_force'] - self.target_upper_force)**2 + \
-                self.over_force_loss_coeff * deltas['over_force'] 
-                    # 0.1 * abs(deltas['angle_velocity'])
+        losses = sum(self.get_losses_detailed(deltas))
+        # assert self.max_reward > losses
+        return max(self.max_reward - losses, 0)
 
-        # proportion = (torch.square(deltas['angle']) / torch.square(deltas['upper_force'] - self.target_upper_force)).item()
-        # print(proportion)
-        assert self.max_reward > loss
-        return self.max_reward - loss
-
-    # def get_force(self, action):
-    #     '''
-    #     Computes the difference between right and left motor forces according to input signals
-    #     Input: list of 2 signals (list of torch.tesnors)
-    #     Returns: list of 2 forces (list of torch.tesnors)
-    #     '''
-    #     return signal_to_force(action[0]), signal_to_force(action[1])
+    def get_losses_detailed(self, deltas: Dict[str, float]) -> List[float]:
+        '''
+        Gets components of losses of model
+        '''
+        loss_angle = self.angle_loss_coeff * abs(deltas['angle'])**2
+        loss_upper_force = self.upper_force_loss_coeff * abs(deltas['upper_force'] - self.target_upper_force)**2
+        return [loss_angle, loss_upper_force]
 
     def step(self) -> Tuple[float, Tuple[int], bool, None]:
         '''
@@ -151,5 +146,8 @@ class TwoMotorsStick(object):
         reward = self.get_reward(state_difference)
         self.total_reward += reward
 
-        return reward, action, self.done, None
+        info = self.get_losses_detailed(state_difference) # for debug
+        # info = None
+
+        return reward, action, self.done, info
         

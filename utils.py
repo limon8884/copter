@@ -24,8 +24,8 @@ def compute_acceleration_using_J(delta_force: float, J: float) -> float:
     Input: difference of forces on the right and left motors, inertia momentum
     Returns: angle acceleration
     '''
-    moment = delta_force * MOTOR_DISTANCE * 1e-3
-    return moment * 10e9 / J # in SI
+    moment = delta_force * MOTOR_DISTANCE
+    return moment / J 
 
 def network_output_to_signal(output):
     '''
@@ -48,6 +48,10 @@ def signal_to_force(signal: float) -> float:
     # normalised_force = torch.tanh(normalised_signal * SCALE_FACTOR)
     # min_value, max_value = torch.tanh(torch.tensor(-SCALE_FACTOR)), torch.tanh(torch.tensor(SCALE_FACTOR))
     # real_force = (normalised_force - min_value) / (max_value - min_value) * MAX_FORCE
+    if signal < MIN_SIGNAL:
+        signal = MIN_SIGNAL
+    if signal > MAX_SIGNAL:
+        signal = MIN_SIGNAL
     return signal * SIGNAL_COEF + SIGNAL_INTERCEPT
 
 
@@ -88,7 +92,7 @@ def get_max_angle():
     '''
     Returns max angle in radians, in which the game is done
     '''
-    return MAX_ANGLE / 180. * 2. * math.pi
+    return MAX_ANGLE / 180. * math.pi
 
 def get_log_prob(actions, preds, std):
     log_probs = -torch.square(preds - actions) / 2 - math.log((2. * math.pi)**0.5 / std)

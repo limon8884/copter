@@ -13,15 +13,16 @@ class Session(object):
     This is a model for running simulations and training network in TwoMotorsStick envinronment.
     This have all the logs too.
     '''
-    def __init__(self, network, gamma=0.99, step_size=1e-2) -> None:
+    def __init__(self, network, **kwargs) -> None:
         super().__init__()
         self.network = network 
-        self.gamma = gamma # discount factor
-        self.step_size = step_size # time interval for iteration
+        self.model = TwoMotorsStick(self.network, **kwargs)
+        self.gamma = kwargs['gamma'] # discount factor
         self.entropy_coef = 0.01 # for loss functions
 
         self.optimizer = torch.optim.Adam(self.network.parameters(), 1e-3)
         self.train_log_rewards = [] # log of rewards for all steps (not session iterations)
+        self.train_log_iters = []
         self.reset() # resets environment
         
     def reset(self):
@@ -29,14 +30,16 @@ class Session(object):
         Resets the simulation environment. Zero all the parameters except network weights.
         '''
         self.success = None
-        self.model = TwoMotorsStick(self.network, step_size=self.step_size)
+        self.model.reset()
         self.iteration = 0
         # self.entropy = math.log(2. * self.model.std**2 * math.pi) + 1 # entropy of 2 variable gaussian
         self.state_history = []
         self.action_history_left = []
         self.action_history_right = []
         self.reward_history = []
-        self.out_signals_history = []
+        self.out_signals_history_left = []
+        self.out_signals_history_right = []
+        self.info_history = []
 
     def run(self, n_iters=100, reset=True):
         '''
@@ -51,6 +54,9 @@ class Session(object):
             self.action_history_left.append(torch.tensor(action[0], dtype=torch.float32))
             self.action_history_right.append(torch.tensor(action[1], dtype=torch.float32))
             self.reward_history.append(reward)
+            self.out_signals_history_left.append(self.model.state['left_signal'])
+            self.out_signals_history_right.append(self.model.state['right_signal'])
+            self.info_history.append(info)
             if done:
                 self.success = False
                 break
@@ -85,6 +91,7 @@ class Session(object):
         Plots rewards of session
         '''
         plt.plot(self.reward_history, label='rewards')
+        plt.axhline(y=self.model.max_reward, color='r', linestyle='-')
         plt.xlabel('iteration')
         plt.ylabel('reward')
         plt.title('Session rewards')
@@ -109,35 +116,30 @@ class Session(object):
     
     def plot_signals(self):
         '''
-        Depriciated
+        Plots signals on motors
         '''
-        signal_tensor = torch.vstack(self.out_signals_history)
+        self.out_signals_history_left
         plt.xlabel('iteration')
         plt.ylabel('signals')
-        plt.title('Session network output unnormalized')
-        plt.plot(signal_tensor[:, 0], label='left')
-        plt.plot(signal_tensor[:, 1], label='right')
+        plt.title('Session signals on motors')
+        plt.plot(self.out_signals_history_left, label='left')
+        plt.plot(self.out_signals_history_right, label='right')
+        plt.axhline(y=MAX_SIGNAL, color='r', linestyle='-')
+        plt.axhline(y=MIN_SIGNAL, color='r', linestyle='-')
         plt.legend()
         plt.show()
         
     def plot_states(self):
         '''
-        Plots states of session.
+        Plots states of session
         '''
-        # angle = []
-        # velocity = []
-        # acceleration = []
-        # jerk = []
-        # for d in self.state_history:
-        #     angle.append(d[0].item())
-        #     velocity.append(d[1].item())
-        #     acceleration.append(d[2].item())
-            # jerk.append(d['jerk'])
         states_tensor = torch.vstack(self.state_history)
         plt.xlabel('iteration')
         plt.ylabel('angle')
         plt.title('session angle')
         plt.plot(states_tensor[:, 0], label='angle')
+        plt.axhline(y=self.model.critical_angle, color='r', linestyle='-')
+        plt.axhline(y=-self.model.critical_angle, color='r', linestyle='-')
         plt.show()
         plt.xlabel('iteration')
         plt.ylabel('angle velocity')
@@ -148,10 +150,28 @@ class Session(object):
         plt.ylabel('angle acceleration')
         plt.title('Session acceleration')
         plt.plot(states_tensor[:, 2], label='acceleration')
+        max_acc = self.model.compute_angle_acceleration(signal_to_force(MAX_SIGNAL) - signal_to_force(MIN_SIGNAL))
+        plt.axhline(y=max_acc, color='r', linestyle='-')
+        plt.axhline(y=-max_acc, color='r', linestyle='-')
         plt.show()
         # plt.plot(jerk, label='jerk')
         # plt.legend()
         # plt.show()
+
+    def plot_info(self):
+        '''
+        Plots info of session
+        '''
+        info_tensor = torch.tensor(self.info_history)
+        plt.xlabel('iteration')
+        plt.ylabel('reward/loss')
+        plt.title('session info')
+        plt.plot(info_tensor[:, 0], label='angle loss')
+        plt.plot(info_tensor[:, 1], label='force loss')
+        plt.axhline(y=self.model.max_reward, color='r', linestyle='-', label='max reward')
+        plt.legend()
+        plt.show()
+
     
     def train_model_step(self):
         '''
@@ -187,8 +207,21 @@ class Session(object):
             self.run(run_iterations)
             reward = self.train_model_step()
             self.train_log_rewards.append(reward)
+            self.train_log_iters.append(self.iteration)
             if print_:
                 print(step, reward, self.iteration)
 
-
+    def plot_trained_logs(self, window_size=10):
+        r = np.convolve(self.train_log_rewards, np.ones(window_size), 'valid') / window_size
+        i = np.convolve(self.train_log_iters, np.ones(window_size), 'valid') / window_size
+        plt.xlabel('step')
+        plt.ylabel('reward')
+        plt.title('rolling reward')
+        plt.plot(r)
+        plt.show()
+        plt.xlabel('step')
+        plt.ylabel('iterations')
+        plt.title('rolling num of iterations')
+        plt.plot(i)
+        plt.show()
 
