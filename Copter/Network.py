@@ -1,4 +1,17 @@
 import torch.nn as nn
+import torch
+
+class FakeNet(nn.Module):
+    '''
+    Fake net with constant output
+    '''
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.in_channels = in_channels # state tensor
+        self.out_channels = out_channels # out probability distributions
+
+    def forward(self, x):
+        return torch.tensor([0, 0, 0, 0], dtype=torch.float)
 
 class Network(nn.Module):
     '''
@@ -24,7 +37,6 @@ class Network(nn.Module):
             nn.Linear(n_hidden, out_channels),
             # nn.Softmax(),
         ) 
-        
 
     def forward(self, x):
         x = self.mlp(x)

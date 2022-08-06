@@ -37,7 +37,6 @@ def network_output_to_signal(output):
         output = torch.tensor(1)
     return (output + 1.) * (MAX_SIGNAL - MIN_SIGNAL) / 2. + MIN_SIGNAL
 
-
 def signal_to_force(signal: float) -> float:
     '''
     Empirical function, which shows mapping between signal level given to motor and its resulting force
@@ -80,14 +79,6 @@ def add_noise(tens, noise_std=0.0):
     '''
     return tens + torch.randn(tens.shape) * noise_std
 
-def state_dict_to_tensor(state_dict: Dict[str, float]) -> torch.Tensor:
-    '''
-    Transforms dict of state with 'angle', 'angle_velocity', 'angle_acceleration' keys to tensor of shape (3,)
-    '''
-    assert isinstance(state_dict, dict)
-    ans_list = [state_dict['angle'], state_dict['angle_velocity'], state_dict['angle_acceleration']]
-    return torch.tensor(ans_list, dtype=torch.float) 
-
 def get_max_angle():
     '''
     Returns max angle in radians, in which the game is done
@@ -101,7 +92,6 @@ def get_log_prob(actions, preds, std):
 def to_one_hot(y_tensor: torch.Tensor, ndims: int) -> torch.Tensor:
     """ helper: take an integer vector and convert it to 1-hot matrix. """
     y_tensor = y_tensor.type(torch.LongTensor).view(-1, 1)
-    y_one_hot = torch.zeros(
-        y_tensor.size()[0], ndims).scatter_(1, y_tensor, 1)
+    y_one_hot = torch.zeros(y_tensor.size()[0], ndims).scatter_(1, y_tensor, 1)
     return y_one_hot
 

@@ -1,4 +1,6 @@
+from pytest import fail
 from Copter.TwoMotorStick import TwoMotorsStick
+from Copter.Agent import Agent
 from utils import *
 
 import matplotlib.pyplot as plt
@@ -15,14 +17,11 @@ class Session(object):
     '''
     def __init__(self, network, **kwargs) -> None:
         super().__init__()
+        self.agent = Agent(**kwargs)
+        self.env = TwoMotorsStick(kwargs['step_size'])
         self.network = network 
-        self.model = TwoMotorsStick(self.network, **kwargs)
         self.gamma = kwargs['gamma'] # discount factor
-        self.entropy_coef = 0.01 # for loss functions
 
-        self.optimizer = torch.optim.Adam(self.network.parameters(), 1e-3)
-        self.train_log_rewards = [] # log of rewards for all steps (not session iterations)
-        self.train_log_iters = []
         self.reset() # resets environment
         
     def reset(self):
@@ -30,16 +29,58 @@ class Session(object):
         Resets the simulation environment. Zero all the parameters except network weights.
         '''
         self.success = None
-        self.model.reset()
+        self.env.reset()
+        self.agent.reset()
         self.iteration = 0
+        self.total_reward = 0
         # self.entropy = math.log(2. * self.model.std**2 * math.pi) + 1 # entropy of 2 variable gaussian
-        self.state_history = []
-        self.action_history_left = []
-        self.action_history_right = []
-        self.reward_history = []
-        self.out_signals_history_left = []
-        self.out_signals_history_right = []
-        self.info_history = []
+        self.logs = {
+            'state_angle': [],
+            'state_angle_velocity': [],
+            'state_angle_acceleration': [],
+            'signal_left': [],
+            'signal_right': [],
+            'reward': [],
+            'angle_loss': [],
+            'upper_force_loss': [],
+            'failed': [],
+            'action_left': [],
+            'action_right': [],
+            'network_out_signal': [],
+            'info': []
+        }
+
+    def step(self):
+        '''
+        On iteration of communication between an agent and the environment
+        Returns whether the agent is done
+        '''
+        state = self.env.get_state()
+        self.logs['state_angle'].append(state['angle'])
+        self.logs['state_angle_velocity'].append(state['angle_velocity'])
+        self.logs['state_angle_acceleration'].append(state['angle_acceleration'])
+        self.agent.set_state(state)
+        signal_to_network = self.agent.make_signal_to_network()
+        with torch.no_grad():
+            signal_from_network = self.network(signal_to_network)
+        self.agent.get_signal_from_network(signal_from_network)
+        self.logs['network_out_signal'].append(signal_from_network)
+        signals = self.agent.get_signals()
+        self.logs['signal_left'].append(signals[0])
+        self.logs['signal_right'].append(signals[1])
+        self.logs['action_left'].append(self.agent.actions['left'])
+        self.logs['action_right'].append(self.agent.actions['right'])
+        feedback = self.env.update_state(signals)
+        self.agent.get_losses(feedback)
+        self.logs['angle_loss'].append(self.agent.losses['angle'])
+        self.logs['upper_force_loss'].append(self.agent.losses['upper_force'])
+        reward = self.agent.get_reward()
+        self.logs['reward'].append(reward)
+        done = self.agent.is_failed(feedback)
+        self.logs['failed'].append(int(done))
+        self.total_reward += reward
+
+        return done
 
     def run(self, n_iters=100, reset=True):
         '''
@@ -48,21 +89,11 @@ class Session(object):
         if reset:
             self.reset()
         while self.iteration < n_iters:
-            self.state_history.append(state_dict_to_tensor(self.model.state))
-            reward, action, done, info = self.model.step()
-            # self.out_signals_history.append(out_signal)
-            self.action_history_left.append(torch.tensor(action[0], dtype=torch.float32))
-            self.action_history_right.append(torch.tensor(action[1], dtype=torch.float32))
-            self.reward_history.append(reward)
-            self.out_signals_history_left.append(self.model.state['left_signal'])
-            self.out_signals_history_right.append(self.model.state['right_signal'])
-            self.info_history.append(info)
-            if done:
-                self.success = False
+            failed = self.step()
+            if failed:
                 break
             self.iteration += 1
-        if self.success is None:
-            self.success = True
+        self.success = not failed
 
     def get_cumulative_rewards(self):
         """
@@ -78,7 +109,7 @@ class Session(object):
 
         You must return an array/list of cumulative rewards with as many elements as in the initial rewards.
         """
-        rewards = self.reward_history
+        rewards = self.logs['reward']
         ans = []
         cur = 0
         for i in range(len(rewards) - 1, -1, -1):
@@ -86,142 +117,34 @@ class Session(object):
             cur = cur * self.gamma + rewards[i]
         return ans[::-1]
 
-    def plot_rewards(self):
-        '''
-        Plots rewards of session
-        '''
-        plt.plot(self.reward_history, label='rewards')
-        plt.axhline(y=self.model.max_reward, color='r', linestyle='-')
-        plt.xlabel('iteration')
-        plt.ylabel('reward')
-        plt.title('Session rewards')
-        plt.show()
+    def get_state_tensor(self) -> torch.Tensor:
+        return torch.tensor(list(zip(
+            self.logs['state_angle'],
+            self.logs['state_angle_velocity'],
+            self.logs['state_angle_acceleration'],
+            self.logs['signal_left'],
+            self.logs['signal_right'],
+        )), dtype=torch.float)
 
-    # def plot_actions(self):
-    #     '''
-    #     Plots actions (signals on motors) of session
-    #     '''
-    #     signals_1 = []
-    #     signals_2 = []
-    #     for s1, s2 in self.action_history:
-    #         signals_1.append(s1)
-    #         signals_2.append(s2)
-    #     plt.plot(signals_1, label='left')
-    #     plt.plot(signals_2, label='right')
-    #     plt.xlabel('iteration')
-    #     plt.ylabel('signal level')
-    #     plt.title('Session signals on motors')
-    #     plt.legend()
-    #     plt.show()
+    def get_action_tensors(self) -> torch.Tensor:
+        action_tensor_left = to_one_hot(torch.tensor(self.logs['action_left']), 2)
+        action_tensor_right = to_one_hot(torch.tensor(self.logs['action_right']), 2)
+
+        return action_tensor_left, action_tensor_right
+
+    def plot_logs(self):
+        '''
+        Plots all the logs of current session
+        '''
+        num_x = 3
+        num_y = 3
+        fig, axs = plt.subplots(num_y, num_x, sharey=False, figsize=(20, 16))
+        # fig.suptitle('Model info')
+        for num, (name, arr) in enumerate(self.logs.items()):
+            if name in ['network_out_signal', 'info', 'action_left', 'action_right']:
+                continue
+            ax = axs[num // num_x][num % num_x]
+            ax.plot(arr)
+            ax.set_title(name, fontsize=15)
+ 
     
-    def plot_signals(self):
-        '''
-        Plots signals on motors
-        '''
-        self.out_signals_history_left
-        plt.xlabel('iteration')
-        plt.ylabel('signals')
-        plt.title('Session signals on motors')
-        plt.plot(self.out_signals_history_left, label='left')
-        plt.plot(self.out_signals_history_right, label='right')
-        plt.axhline(y=MAX_SIGNAL, color='r', linestyle='-')
-        plt.axhline(y=MIN_SIGNAL, color='r', linestyle='-')
-        plt.legend()
-        plt.show()
-        
-    def plot_states(self):
-        '''
-        Plots states of session
-        '''
-        states_tensor = torch.vstack(self.state_history)
-        plt.xlabel('iteration')
-        plt.ylabel('angle')
-        plt.title('session angle')
-        plt.plot(states_tensor[:, 0], label='angle')
-        plt.axhline(y=self.model.critical_angle, color='r', linestyle='-')
-        plt.axhline(y=-self.model.critical_angle, color='r', linestyle='-')
-        plt.show()
-        plt.xlabel('iteration')
-        plt.ylabel('angle velocity')
-        plt.title('Session velocity')
-        plt.plot(states_tensor[:, 1], label='velocity')
-        plt.show()
-        plt.xlabel('iteration')
-        plt.ylabel('angle acceleration')
-        plt.title('Session acceleration')
-        plt.plot(states_tensor[:, 2], label='acceleration')
-        max_acc = self.model.compute_angle_acceleration(signal_to_force(MAX_SIGNAL) - signal_to_force(MIN_SIGNAL))
-        plt.axhline(y=max_acc, color='r', linestyle='-')
-        plt.axhline(y=-max_acc, color='r', linestyle='-')
-        plt.show()
-        # plt.plot(jerk, label='jerk')
-        # plt.legend()
-        # plt.show()
-
-    def plot_info(self):
-        '''
-        Plots info of session
-        '''
-        info_tensor = torch.tensor(self.info_history)
-        plt.xlabel('iteration')
-        plt.ylabel('reward/loss')
-        plt.title('session info')
-        plt.plot(info_tensor[:, 0], label='angle loss')
-        plt.plot(info_tensor[:, 1], label='force loss')
-        plt.axhline(y=self.model.max_reward, color='r', linestyle='-', label='max reward')
-        plt.legend()
-        plt.show()
-
-    
-    def train_model_step(self):
-        '''
-        Makes a step of model training
-        '''
-        states_tensor = torch.vstack(self.state_history)
-        actions_left_tensor = torch.vstack(self.action_history_left)
-        actions_right_tensor = torch.vstack(self.action_history_right)
-        cumulative_rewards_tensor = torch.tensor(self.get_cumulative_rewards(), dtype=torch.float32)
-
-        logits = self.network(states_tensor)
-        left_log_logits = F.log_softmax(logits[:, :2], -1)
-        right_log_logits = F.log_softmax(logits[:, 2:], -1)
-        log_probs_for_actions = torch.sum(left_log_logits * to_one_hot(actions_left_tensor, 2) + \
-            right_log_logits * to_one_hot(actions_right_tensor, 2), dim=1) 
-        
-        entropy = (torch.exp(log_probs_for_actions) * log_probs_for_actions).sum()
-        loss = -(log_probs_for_actions * cumulative_rewards_tensor).mean() - entropy * self.entropy_coef
-
-        # log_prob = get_log_prob(actions_tensor, preds, self.model.std)
-        # loss = -(log_prob * cumulative_rewards_tensor).mean()
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        return self.model.total_reward
-
-    def train_model(self, train__steps=10, run_iterations=100, print_=True):
-        '''
-        Trains model for several steps.
-        '''
-        for step in range(train__steps):
-            self.run(run_iterations)
-            reward = self.train_model_step()
-            self.train_log_rewards.append(reward)
-            self.train_log_iters.append(self.iteration)
-            if print_:
-                print(step, reward, self.iteration)
-
-    def plot_trained_logs(self, window_size=10):
-        r = np.convolve(self.train_log_rewards, np.ones(window_size), 'valid') / window_size
-        i = np.convolve(self.train_log_iters, np.ones(window_size), 'valid') / window_size
-        plt.xlabel('step')
-        plt.ylabel('reward')
-        plt.title('rolling reward')
-        plt.plot(r)
-        plt.show()
-        plt.xlabel('step')
-        plt.ylabel('iterations')
-        plt.title('rolling num of iterations')
-        plt.plot(i)
-        plt.show()
-
