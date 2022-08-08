@@ -95,3 +95,20 @@ def to_one_hot(y_tensor: torch.Tensor, ndims: int) -> torch.Tensor:
     y_one_hot = torch.zeros(y_tensor.size()[0], ndims).scatter_(1, y_tensor, 1)
     return y_one_hot
 
+def normalize_tensor(input: torch.Tensor, mean=None, scale=None) -> torch.Tensor:
+    '''
+    Normalize data for NN. Substract mean then divide by scale every sample of input tensor.
+    Input: 
+    - tensor of shape (n_samples, in_channels) where n_channels corresponds to number of input channels of NN
+    - tensor of shape (in_channels,)
+    - tensor of shape (in_channels,)
+    Returns: tensor of shape (n_samples, in_channels) 
+    '''
+    if mean is None:
+        mean = torch.tensor([0, 0, 0, (MAX_SIGNAL - MIN_SIGNAL) / 2, (MAX_SIGNAL - MIN_SIGNAL) / 2])
+    if scale is None:
+        max_acc = 30
+        scale = torch.tensor([MAX_ANGLE, max_acc * 1e-3, max_acc, (MAX_SIGNAL - MIN_SIGNAL) / 2, (MAX_SIGNAL - MIN_SIGNAL) / 2])
+    output = (input - mean) / scale
+    assert input.shape == output.shape
+    return output

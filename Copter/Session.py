@@ -60,7 +60,7 @@ class Session(object):
         self.logs['state_angle_velocity'].append(state['angle_velocity'])
         self.logs['state_angle_acceleration'].append(state['angle_acceleration'])
         self.agent.set_state(state)
-        signal_to_network = self.agent.make_signal_to_network()
+        signal_to_network = normalize_tensor(self.agent.make_signal_to_network())
         with torch.no_grad():
             signal_from_network = self.network(signal_to_network)
         self.agent.get_signal_from_network(signal_from_network)
@@ -124,11 +124,11 @@ class Session(object):
             self.logs['state_angle_acceleration'],
             self.logs['signal_left'],
             self.logs['signal_right'],
-        )), dtype=torch.float)
+        )), dtype=torch.float).clone().detach()
 
     def get_action_tensors(self) -> torch.Tensor:
-        action_tensor_left = to_one_hot(torch.tensor(self.logs['action_left']), 2)
-        action_tensor_right = to_one_hot(torch.tensor(self.logs['action_right']), 2)
+        action_tensor_left = to_one_hot(torch.tensor(self.logs['action_left']), 2).clone().detach()
+        action_tensor_right = to_one_hot(torch.tensor(self.logs['action_right']), 2).clone().detach()
 
         return action_tensor_left, action_tensor_right
 
