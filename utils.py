@@ -107,8 +107,9 @@ def normalize_tensor(input: torch.Tensor, mean=None, scale=None) -> torch.Tensor
     if mean is None:
         mean = torch.tensor([0, 0, 0, (MAX_SIGNAL - MIN_SIGNAL) / 2, (MAX_SIGNAL - MIN_SIGNAL) / 2])
     if scale is None:
+        max_ang = MAX_ANGLE * 0.9 / 180 * 3.1415
         max_acc = 30
-        scale = torch.tensor([MAX_ANGLE, max_acc * 1e-3, max_acc, (MAX_SIGNAL - MIN_SIGNAL) / 2, (MAX_SIGNAL - MIN_SIGNAL) / 2])
+        scale = torch.tensor([max_ang, max_acc * 1e-3, max_acc, (MAX_SIGNAL - MIN_SIGNAL) / 2, (MAX_SIGNAL - MIN_SIGNAL) / 2])
     output = (input - mean) / scale
     assert input.shape == output.shape
     return output
