@@ -1,4 +1,4 @@
-from pytest import fail
+# from pytest import fail
 from Copter.TwoMotorStick import TwoMotorsStick
 from Copter.Agent import Agent
 from utils import *
