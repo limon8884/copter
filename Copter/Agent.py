@@ -14,7 +14,6 @@ class Agent(object):
     '''
     def __init__(self, **kwargs) -> None:
         super().__init__()
-        self.model_type = 'binary' # continious type of model is depritiated
 
         self.reaction_speed = kwargs['reaction_speed'] 
         self.max_reward = kwargs['max_reward']
@@ -22,7 +21,6 @@ class Agent(object):
         self.over_force_loss_coeff = kwargs['over_force_loss_coeff']
         self.upper_force_loss_coeff = kwargs['upper_force_loss_coeff']
         self.step_size = kwargs['step_size'] 
-        self.target_upper_force = kwargs['target_upper_force'] 
         self.noise_std_out_signal = 0.0
         self.reset()
         # self.falied = False
@@ -44,6 +42,9 @@ class Agent(object):
     def set_state(self, state: Dict[str, float]) -> None:
         self.state = state
 
+    def set_target_upper_force(self, target_force: float) -> None:
+        self.target_upper_force = target_force
+
     def get_signals(self) -> Tuple[int]:
         return self.signals['left'], self.signals['right']
 
@@ -59,6 +60,7 @@ class Agent(object):
             self.state['angle_acceleration'],
             self.signals['left'],
             self.signals['right'],
+            self.target_upper_force,
         ]
         state_tensor = torch.tensor(state_list, dtype=torch.float) 
         return state_tensor + torch.randn(state_tensor.shape) * self.noise_std_out_signal

@@ -15,12 +15,16 @@ class Session(object):
     This is a model for running simulations and training network in TwoMotorsStick envinronment.
     This have all the logs too.
     '''
-    def __init__(self, network, **kwargs) -> None:
+    def __init__(self, network, target_upper_force, **kwargs) -> None:
         super().__init__()
         self.agent = Agent(**kwargs)
-        self.env = TwoMotorsStick(kwargs['step_size'])
+        self.env = TwoMotorsStick(**kwargs)
         self.network = network 
+        self.target_upper_force = target_upper_force
+
         self.gamma = kwargs['gamma'] # discount factor
+        # self.target_upper_force = kwargs['target_upper_force']
+        assert self.network.in_channels == 6
 
         self.reset() # resets environment
         
@@ -43,6 +47,7 @@ class Session(object):
             'reward': [],
             'angle_loss': [],
             'upper_force_loss': [],
+            'target_upper_force': [],
             'failed': [],
             'action_left': [],
             'action_right': [],
@@ -50,7 +55,7 @@ class Session(object):
             'info': []
         }
 
-    def step(self):
+    def step(self, target_force):
         '''
         On iteration of communication between an agent and the environment
         Returns whether the agent is done
@@ -60,6 +65,7 @@ class Session(object):
         self.logs['state_angle_velocity'].append(state['angle_velocity'])
         self.logs['state_angle_acceleration'].append(state['angle_acceleration'])
         self.agent.set_state(state)
+        self.agent.set_target_upper_force(target_force)
         signal_to_network = normalize_tensor(self.agent.make_signal_to_network())
         with torch.no_grad():
             signal_from_network = self.network(signal_to_network)
@@ -74,6 +80,7 @@ class Session(object):
         self.agent.get_losses(feedback)
         self.logs['angle_loss'].append(self.agent.losses['angle'])
         self.logs['upper_force_loss'].append(self.agent.losses['upper_force'])
+        self.logs['target_upper_force'].append(self.agent.target_upper_force)
         reward = self.agent.get_reward()
         self.logs['reward'].append(reward)
         done = self.agent.is_failed(feedback)
@@ -88,8 +95,11 @@ class Session(object):
         '''
         if reset:
             self.reset()
+        
+        target_forces = generate_target_forces(n_ticks=n_iters, const_force=self.target_upper_force)
         while self.iteration < n_iters:
-            failed = self.step()
+            target_force = target_forces[self.iteration]
+            failed = self.step(target_force)
             if failed:
                 break
             self.iteration += 1
@@ -124,6 +134,7 @@ class Session(object):
             self.logs['state_angle_acceleration'],
             self.logs['signal_left'],
             self.logs['signal_right'],
+            self.logs['target_upper_force'], 
         )), dtype=torch.float).clone().detach()
 
     def get_action_tensors(self) -> torch.Tensor:
@@ -141,7 +152,7 @@ class Session(object):
         fig, axs = plt.subplots(num_y, num_x, sharey=False, figsize=(20, 16))
         # fig.suptitle('Model info')
         for num, (name, arr) in enumerate(self.logs.items()):
-            if name in ['network_out_signal', 'info', 'action_left', 'action_right']:
+            if name in ['network_out_signal', 'info', 'action_left', 'action_right', 'failed']:
                 continue
             ax = axs[num // num_x][num % num_x]
             ax.plot(arr)

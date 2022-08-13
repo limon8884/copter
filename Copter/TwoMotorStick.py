@@ -9,11 +9,15 @@ class TwoMotorsStick(object):
     A model of stick with 2 motors.
     If model_type is binary, every iteration each motor signal is increased or decreased on reaction_speed.
     '''
-    def __init__(self, step_size) -> None:
+    def __init__(self, **kwargs) -> None:
         super().__init__()
         self.J = compute_total_J() # computes inertia moment of model
         self.critical_angle = get_max_angle() * 0.9 # with angle is treated as fail
-        self.step_size = step_size
+        self.step_size = kwargs['step_size']
+        self.std_angle = kwargs['std_angle']
+        self.std_velocity = kwargs['std_velocity']
+        self.std_acceleration = kwargs['std_acceleration']
+        self.std_force = kwargs['std_force']
         self.reset()
 
     def reset(self):
@@ -29,7 +33,12 @@ class TwoMotorsStick(object):
         } 
 
     def get_state(self):
-        return self.state
+        state = {}
+        state['angle'] = self.state['angle'] + np.random.randn() * self.std_angle
+        state['angle_velocity'] = self.state['angle_velocity'] + np.random.randn() * self.std_velocity
+        state['angle_acceleration'] = self.state['angle_acceleration'] + np.random.randn() * self.std_acceleration
+
+        return state
 
     def compute_angle_acceleration(self, delta_force: float) -> float:
         '''
@@ -43,8 +52,8 @@ class TwoMotorsStick(object):
         Input: signals of motors (tuple of 2 integers)
         Returns: difference between new and old states (dict)
         '''
-        force_l = signal_to_force(signals[0])
-        force_r = signal_to_force(signals[1])
+        force_l = signal_to_force(signals[0], self.std_force)
+        force_r = signal_to_force(signals[1], self.std_force)
         delta_force = force_r - force_l
         actual_angle_acceleration = self.compute_angle_acceleration(delta_force)
         new_angle = self.state['angle'] + self.state['angle_velocity'] * self.step_size
