@@ -66,7 +66,7 @@ class Session(object):
         self.network = network 
         self.target_upper_force = target_upper_force
 
-        self.gamma = kwargs['gamma'] # discount factor
+        # self.gamma = kwargs['gamma'] # discount factor
         # self.target_upper_force = kwargs['target_upper_force']
         assert self.network.in_channels == 6
         assert self.network.out_channels == 6

@@ -18,7 +18,7 @@ class Agent(object):
         self.reaction_speed = kwargs['reaction_speed'] 
         self.max_reward = kwargs['max_reward']
         self.angle_loss_coeff = kwargs['angle_loss_coeff'] 
-        self.over_force_loss_coeff = kwargs['over_force_loss_coeff']
+        # self.over_force_loss_coeff = kwargs['over_force_loss_coeff']
         self.upper_force_loss_coeff = kwargs['upper_force_loss_coeff']
         self.step_size = kwargs['step_size'] 
         self.noise_std_out_signal = 0.0
