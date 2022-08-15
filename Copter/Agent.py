@@ -71,8 +71,8 @@ class Agent(object):
         Input: list of np.arrays. Distribution parameters. 
         '''
         # if binary:
-        a_l = np.random.choice(2, 1, p=action_probs_l)[0]
-        a_r = np.random.choice(2, 1, p=action_probs_r)[0]
+        a_l = np.random.choice(3, 1, p=action_probs_l)[0]
+        a_r = np.random.choice(3, 1, p=action_probs_r)[0]
         return a_l, a_r
 
     def constrain_signals(self):
@@ -88,8 +88,8 @@ class Agent(object):
         action = self.sample_actions(signal_distribution_left, signal_distribution_rignt) # action is a tuple of 0 and 1
         self.actions['left'] = action[0]
         self.actions['right'] = action[1]
-        self.signals['left'] += self.reaction_speed * (action[0] * 2 - 1)
-        self.signals['right'] += self.reaction_speed * (action[1] * 2 - 1)
+        self.signals['left'] += self.reaction_speed * (action[0] - 1)
+        self.signals['right'] += self.reaction_speed * (action[1] - 1)
         self.constrain_signals()
         
     def get_reward(self) -> float:

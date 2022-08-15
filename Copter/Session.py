@@ -69,6 +69,7 @@ class Session(object):
         self.gamma = kwargs['gamma'] # discount factor
         # self.target_upper_force = kwargs['target_upper_force']
         assert self.network.in_channels == 6
+        assert self.network.out_channels == 6
 
         self.reset() # resets environment
         
@@ -198,8 +199,8 @@ class Session(object):
         )), dtype=torch.float).clone().detach()
 
     def get_action_tensors(self) -> torch.Tensor:
-        action_tensor_left = to_one_hot(torch.tensor(self.logs['action_left']), 2).clone().detach()
-        action_tensor_right = to_one_hot(torch.tensor(self.logs['action_right']), 2).clone().detach()
+        action_tensor_left = to_one_hot(torch.tensor(self.logs['action_left']), 3).clone().detach()
+        action_tensor_right = to_one_hot(torch.tensor(self.logs['action_right']), 3).clone().detach()
 
         return action_tensor_left, action_tensor_right
 
