@@ -3,12 +3,56 @@ from Copter.TwoMotorStick import TwoMotorsStick
 from Copter.Agent import Agent
 from utils import *
 
+import time
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
 import numpy as np
+
+class TargetForceGenerator(object):
+    def __init__(self, pred_session_lenght):
+        super().__init__()
+        k = 10
+        self.pred_session_lenght = pred_session_lenght
+        self.precision = 2 / 100
+        self.generator_coefs = np.random.randint(-5, 5, k)
+        self.init_norm_values()
+
+    def polynom(self, x):
+        x_deg = 1
+        ans = 0
+        for c in self.generator_coefs:
+            ans += c * x_deg
+            x_deg *= x
+        return ans 
+
+    def init_norm_values(self):
+        min_board, max_board = self.get_min_max_boards()
+        min_force, max_force = signal_to_force(MIN_SIGNAL), signal_to_force(MAX_SIGNAL)
+
+        self.coef = (max_force - min_force) / (max_board - min_board)
+        self.intercept = min_force - self.coef * min_board
+
+    def get_min_max_boards(self):
+        # min_board = min([self.polynom(x) for x in np.arange(-1, 1, self.precision)])
+        # max_board = max([self.polynom(x) for x in np.arange(-1, 1, self.precision)])
+
+        # these are 20 percentile of min_boards and 80 percenltile of max_boards
+        return -15, 10
+    
+    def constrain(self, force):
+        min_force, max_force = signal_to_force(MIN_SIGNAL), signal_to_force(MAX_SIGNAL)
+
+        return max(min_force, min(max_force, force))
+
+    def generate_target_force(self, iteration):
+        x = 2 * iteration / self.pred_session_lenght - 1
+        force = self.intercept + self.coef * self.polynom(x)
+
+        return self.constrain(force)
+
 
 class Session(object):
     '''
@@ -48,6 +92,7 @@ class Session(object):
             'angle_loss': [],
             'upper_force_loss': [],
             'target_upper_force': [],
+            'real_upper_force': [],
             'failed': [],
             'action_left': [],
             'action_right': [],
@@ -78,6 +123,7 @@ class Session(object):
         self.logs['action_right'].append(self.agent.actions['right'])
         feedback = self.env.update_state(signals)
         self.agent.get_losses(feedback)
+        self.logs['real_upper_force'].append(feedback['upper_force'])
         self.logs['angle_loss'].append(self.agent.losses['angle'])
         self.logs['upper_force_loss'].append(self.agent.losses['upper_force'])
         self.logs['target_upper_force'].append(self.agent.target_upper_force)
@@ -89,21 +135,35 @@ class Session(object):
 
         return done
 
-    def run(self, n_iters=100, reset=True):
+    def run(self, max_iters=100, pred_iters=100, reset=True):
         '''
         Runs session. Simulates a situation for n_iter steps and record all the states, actions, rewards.
         '''
         if reset:
             self.reset()
-        
-        target_forces = generate_target_forces(n_ticks=n_iters, const_force=self.target_upper_force)
-        while self.iteration < n_iters:
-            target_force = target_forces[self.iteration]
+
+        target_force_generator = TargetForceGenerator(pred_iters)
+        # start_time = time.time()
+        # target_forces = generate_target_forces(n_ticks=n_iters, const_force=self.target_upper_force)
+        # gen_time = time.time() - start_time
+        # delta_times = []
+
+        while self.iteration < max_iters:
+            # start_time = time.time()
+            if self.target_upper_force is not None:
+                target_force = self.target_upper_force
+            else:
+                target_force = target_force_generator.generate_target_force(self.iteration)
+
             failed = self.step(target_force)
             if failed:
                 break
             self.iteration += 1
+            # delta_times.append(time.time() - start_time)
         self.success = not failed
+
+        # print('gen time: ', gen_time)
+        # print('avg step time: ', np.mean(delta_times))
 
     def get_cumulative_rewards(self):
         """
@@ -147,7 +207,7 @@ class Session(object):
         '''
         Plots all the logs of current session
         '''
-        num_x = 3
+        num_x = 4
         num_y = 3
         fig, axs = plt.subplots(num_y, num_x, sharey=False, figsize=(20, 16))
         # fig.suptitle('Model info')

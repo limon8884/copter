@@ -123,24 +123,4 @@ def normalize_tensor(input: torch.Tensor, mean=None, scale=None) -> torch.Tensor
     assert input.shape == output.shape
     return output
 
-def generate_target_forces(n_ticks: int, const_force: float) -> List[float]:
-    if const_force is not None:
-        return [const_force] * n_ticks
-    k = 10
-    coefs = np.random.randint(-5, 5, k)
-    step_interval = 2 / n_ticks
-    def polynom(x):
-        x_deg = 1
-        ans = 0
-        for c in coefs:
-            ans += c * x_deg
-            x_deg *= x
-        return ans
 
-    arr = [polynom(x) for x in np.arange(-1, 1, step_interval)]
-    min_force, max_force = signal_to_force(MIN_SIGNAL), signal_to_force(MAX_SIGNAL)
-    coef = (max_force - min_force) / (max(arr) - min(arr))
-    min_a = min(arr)
-    forces = [min_force + coef * (a - min_a) for a in arr]
-
-    return forces
