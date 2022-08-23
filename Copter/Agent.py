@@ -21,7 +21,7 @@ class Agent(object):
         # self.over_force_loss_coeff = kwargs['over_force_loss_coeff']
         self.upper_force_loss_coeff = kwargs['upper_force_loss_coeff']
         self.step_size = kwargs['step_size'] 
-        self.noise_std_out_signal = 0.0
+        # self.noise_std_out_signal = 0.0
         self.reset()
         # self.falied = False
 
@@ -42,8 +42,8 @@ class Agent(object):
     def set_state(self, state: Dict[str, float]) -> None:
         self.state = state
 
-    def set_target_upper_force(self, target_force: float) -> None:
-        self.target_upper_force = target_force
+    def set_target_params(self, target_params: Dict[str, float]) -> None:
+        self.target_params = target_params
 
     def get_signals(self) -> Tuple[int]:
         return self.signals['left'], self.signals['right']
@@ -60,10 +60,10 @@ class Agent(object):
             self.state['angle_acceleration'],
             self.signals['left'],
             self.signals['right'],
-            self.target_upper_force,
+            self.target_params['upper_force'],
         ]
         state_tensor = torch.tensor(state_list, dtype=torch.float) 
-        return state_tensor + torch.randn(state_tensor.shape) * self.noise_std_out_signal
+        return state_tensor #+ torch.randn(state_tensor.shape) * self.noise_std_out_signal
 
     def sample_actions(self, action_probs_l: np.ndarray, action_probs_r: np.ndarray) -> Tuple[int]:
         '''
@@ -109,7 +109,7 @@ class Agent(object):
         - angle_acceleration diff
         '''
         self.losses['angle'] = self.angle_loss_coeff * abs(feedback['delta_angle'] + self.state['angle'])
-        self.losses['upper_force'] = self.upper_force_loss_coeff * abs(feedback['upper_force'] - self.target_upper_force)
+        self.losses['upper_force'] = self.upper_force_loss_coeff * abs(feedback['upper_force'] - self.target_params['upper_force'])
     
     def is_failed(self, feedback: Dict[str, float]) -> bool:
         return feedback['failed'] 

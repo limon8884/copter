@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import math
 import numpy as np
 
-class TargetForceGenerator(object):
+class TargetParamsGenerator(object):
     def __init__(self, pred_session_lenght):
         super().__init__()
         k = 10
@@ -47,7 +47,7 @@ class TargetForceGenerator(object):
 
         return max(min_force, min(max_force, force))
 
-    def generate_target_force(self, iteration):
+    def generate_target_params(self, iteration):
         x = 2 * iteration / self.pred_session_lenght - 1
         force = self.intercept + self.coef * self.polynom(x)
 
@@ -59,12 +59,12 @@ class Session(object):
     This is a model for running simulations and training network in TwoMotorsStick envinronment.
     This have all the logs too.
     '''
-    def __init__(self, network, target_upper_force, **kwargs) -> None:
+    def __init__(self, network, target_params, **kwargs) -> None:
         super().__init__()
         self.agent = Agent(**kwargs)
         self.env = TwoMotorsStick(**kwargs)
         self.network = network 
-        self.target_upper_force = target_upper_force
+        self.target_params = target_params
 
         # self.gamma = kwargs['gamma'] # discount factor
         # self.target_upper_force = kwargs['target_upper_force']
@@ -101,7 +101,7 @@ class Session(object):
             'info': []
         }
 
-    def step(self, target_force):
+    def step(self, target_params):
         '''
         On iteration of communication between an agent and the environment
         Returns whether the agent is done
@@ -111,7 +111,7 @@ class Session(object):
         self.logs['state_angle_velocity'].append(state['angle_velocity'])
         self.logs['state_angle_acceleration'].append(state['angle_acceleration'])
         self.agent.set_state(state)
-        self.agent.set_target_upper_force(target_force)
+        self.agent.set_target_params(target_params)
         signal_to_network = normalize_tensor(self.agent.make_signal_to_network())
         with torch.no_grad():
             signal_from_network = self.network(signal_to_network)
@@ -127,7 +127,7 @@ class Session(object):
         self.logs['real_upper_force'].append(feedback['upper_force'])
         self.logs['angle_loss'].append(self.agent.losses['angle'])
         self.logs['upper_force_loss'].append(self.agent.losses['upper_force'])
-        self.logs['target_upper_force'].append(self.agent.target_upper_force)
+        self.logs['target_upper_force'].append(self.agent.target_params['upper_force'])
         reward = self.agent.get_reward()
         self.logs['reward'].append(reward)
         done = self.agent.is_failed(feedback)
@@ -143,7 +143,7 @@ class Session(object):
         if reset:
             self.reset()
 
-        target_force_generator = TargetForceGenerator(pred_iters)
+        target_params_generator = TargetParamsGenerator(pred_iters)
         # start_time = time.time()
         # target_forces = generate_target_forces(n_ticks=n_iters, const_force=self.target_upper_force)
         # gen_time = time.time() - start_time
@@ -151,12 +151,12 @@ class Session(object):
 
         while self.iteration < max_iters:
             # start_time = time.time()
-            if self.target_upper_force is not None:
-                target_force = self.target_upper_force
+            if self.target_params is not None:
+                target_params = self.target_params
             else:
-                target_force = target_force_generator.generate_target_force(self.iteration)
+                target_params = target_params_generator.generate_target_params(self.iteration)
 
-            failed = self.step(target_force)
+            failed = self.step(target_params)
             if failed:
                 break
             self.iteration += 1
@@ -213,7 +213,7 @@ class Session(object):
         fig, axs = plt.subplots(num_y, num_x, sharey=False, figsize=(20, 16))
         # fig.suptitle('Model info')
         for num, (name, arr) in enumerate(self.logs.items()):
-            if name in ['network_out_signal', 'info', 'action_left', 'action_right', 'failed']:
+            if name in ['network_out_signal', 'info', 'action_left', 'action_right', 'failed', 'target_params']:
                 continue
             ax = axs[num // num_x][num % num_x]
             ax.plot(arr)
