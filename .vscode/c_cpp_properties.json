@@ -35,6 +35,9 @@
             "includePath": [
                 "D:\\Program Files\\Arduino\\hardware\\arduino\\avr\\cores\\arduino",
                 "D:\\Program Files\\Arduino\\hardware\\arduino\\avr\\variants\\standard",
+                "C:\\Users\\Danill\\Documents\\Arduino\\libraries\\I2Cdev",
+                "D:\\Program Files\\Arduino\\hardware\\arduino\\avr\\libraries\\Wire\\src",
+                "C:\\Users\\Danill\\Documents\\Arduino\\libraries\\MPU6050",
                 "d:\\program files\\arduino\\hardware\\tools\\avr\\lib\\gcc\\avr\\7.3.0\\include",
                 "d:\\program files\\arduino\\hardware\\tools\\avr\\lib\\gcc\\avr\\7.3.0\\include-fixed",
                 "d:\\program files\\arduino\\hardware\\tools\\avr\\avr\\include"
