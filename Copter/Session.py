@@ -63,8 +63,10 @@ class Session(object):
         super().__init__()
         self.agent = Agent(**kwargs)
         self.env = TwoMotorsStick(**kwargs)
+
         self.network = network 
         self.target_params = target_params
+        self.communication_time_step = kwargs['communication_time_step']
 
         # self.gamma = kwargs['gamma'] # discount factor
         # self.target_upper_force = kwargs['target_upper_force']
@@ -81,6 +83,7 @@ class Session(object):
         self.env.reset()
         self.agent.reset()
         self.iteration = 0
+        self.current_timestamp = 0
         self.total_reward = 0
         # self.entropy = math.log(2. * self.model.std**2 * math.pi) + 1 # entropy of 2 variable gaussian
         self.logs = {
@@ -98,6 +101,7 @@ class Session(object):
             'action_left': [],
             'action_right': [],
             'network_out_signal': [],
+            'time': [],
             'info': []
         }
 
@@ -122,7 +126,7 @@ class Session(object):
         self.logs['signal_right'].append(signals[1])
         self.logs['action_left'].append(self.agent.actions['left'])
         self.logs['action_right'].append(self.agent.actions['right'])
-        feedback = self.env.update_state(signals)
+        feedback = self.env.update_state(signals, self.current_timestamp)
         self.agent.get_losses(feedback)
         self.logs['real_upper_force'].append(feedback['upper_force'])
         self.logs['angle_loss'].append(self.agent.losses['angle'])
@@ -133,6 +137,7 @@ class Session(object):
         done = self.agent.is_failed(feedback)
         self.logs['failed'].append(int(done))
         self.total_reward += reward
+        self.current_timestamp += self.communication_time_step
 
         return done
 
@@ -213,7 +218,7 @@ class Session(object):
         fig, axs = plt.subplots(num_y, num_x, sharey=False, figsize=(20, 16))
         # fig.suptitle('Model info')
         for num, (name, arr) in enumerate(self.logs.items()):
-            if name in ['network_out_signal', 'info', 'action_left', 'action_right', 'failed', 'target_params']:
+            if name in ['network_out_signal', 'info', 'action_left', 'action_right', 'failed', 'target_params', 'time']:
                 continue
             ax = axs[num // num_x][num % num_x]
             ax.plot(arr)

@@ -20,7 +20,7 @@ class Agent(object):
         self.angle_loss_coeff = kwargs['angle_loss_coeff'] 
         # self.over_force_loss_coeff = kwargs['over_force_loss_coeff']
         self.upper_force_loss_coeff = kwargs['upper_force_loss_coeff']
-        self.step_size = kwargs['step_size'] 
+        # self.step_size = kwargs['step_size'] 
         # self.noise_std_out_signal = 0.0
         self.reset()
         # self.falied = False
@@ -108,7 +108,7 @@ class Agent(object):
         - angle_velocity diff
         - angle_acceleration diff
         '''
-        self.losses['angle'] = self.angle_loss_coeff * abs(feedback['delta_angle'] + self.state['angle'])
+        self.losses['angle'] = self.angle_loss_coeff * abs(feedback['angle'])
         self.losses['upper_force'] = self.upper_force_loss_coeff * abs(feedback['upper_force'] - self.target_params['upper_force'])
     
     def is_failed(self, feedback: Dict[str, float]) -> bool:

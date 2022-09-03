@@ -1,3 +1,4 @@
+from turtle import st
 from utils import *
 from model_parameters import MIN_SIGNAL, MAX_SIGNAL
 
@@ -13,11 +14,14 @@ class TwoMotorsStick(object):
         super().__init__()
         self.J = compute_total_J() # computes inertia moment of model
         self.critical_angle = get_max_angle() * 0.9 # with angle is treated as fail
-        self.step_size = kwargs['step_size']
+
+        self.env_update_time_step = kwargs['env_update_time_step']
+
         self.std_angle = kwargs['std_angle']
         self.std_velocity = kwargs['std_velocity']
         self.std_acceleration = kwargs['std_acceleration']
         self.std_force = kwargs['std_force']
+
         self.reset()
 
     def reset(self):
@@ -31,6 +35,11 @@ class TwoMotorsStick(object):
             'angle_acceleration':0.0,
             'angle_jerk':0.0,
         } 
+        self.signals = {
+            'left': MIN_SIGNAL,
+            'right': MIN_SIGNAL,
+        }
+        self.last_updated_ts = None
 
     def get_state(self):
         state = {}
@@ -46,34 +55,44 @@ class TwoMotorsStick(object):
         '''
         return compute_acceleration_using_J(delta_force, self.J)
 
-    def update_state(self, signals: Tuple[int]) -> Dict[str, float]:
+    def next_state(self):
         '''
-        Computes the differences of parameters and updates the current state
-        Input: signals of motors (tuple of 2 integers)
-        Returns: difference between new and old states (dict)
+        Simulates the motion of the env after the small time step
         '''
-        force_l = signal_to_force(signals[0], self.std_force)
-        force_r = signal_to_force(signals[1], self.std_force)
-        delta_force = force_r - force_l
-        actual_angle_acceleration = self.compute_angle_acceleration(delta_force)
-        new_angle = self.state['angle'] + self.state['angle_velocity'] * self.step_size
-        new_angle_velocity = self.state['angle_velocity'] + self.state['angle_acceleration'] * self.step_size
+        right_force = signal_to_force(self.signals['right'], self.std_force)
+        left_force = signal_to_force(self.signals['left'], self.std_force)
+
+        actual_angle_acceleration = self.compute_angle_acceleration(right_force - left_force)
+
+        new_angle = self.state['angle'] + self.state['angle_velocity'] * self.env_update_time_step
+        new_angle_velocity = self.state['angle_velocity'] + self.state['angle_acceleration'] * self.env_update_time_step
         new_jerk = self.state['angle_acceleration'] - actual_angle_acceleration
 
-        feedback = {}
-        feedback['delta_angle'] = new_angle - self.state['angle']
-        feedback['delta_angle_velocity'] = new_angle_velocity - self.state['angle_velocity']
-        feedback['delta_angle_acceleration'] = actual_angle_acceleration - self.state['angle_acceleration']
-        feedback['upper_force'] = math.cos(self.state['angle']) * (force_l + force_r)
-        min_force, max_force = signal_to_force(MIN_SIGNAL), signal_to_force(MAX_SIGNAL)
-        feedback['over_force'] = max(min_force - force_l, 0) + \
-            max(min_force - force_l, 0) + \
-                max(force_l - max_force, 0) + \
-                    max(force_r - max_force, 0)
-        feedback['failed'] = abs(new_angle) > self.critical_angle
-        
         self.state['angle'] = new_angle
         self.state['angle_velocity'] = new_angle_velocity
         self.state['angle_acceleration'] = actual_angle_acceleration
         self.state['angle_jerk'] = new_jerk
+
+    def update_state(self, signals: Tuple[int], timestamp: float) -> Dict[str, float]:
+        '''
+        Simulates behavior of env since the last call of this function 
+        Input: signals of motors (tuple of 2 integers)
+        Returns: current state of env (dict)
+        '''
+        if self.last_updated_ts is None:
+            n_steps = 0
+        else:
+            n_steps = int( (timestamp - self.last_updated_ts) / self.env_update_time_step )
+        self.last_updated_ts = timestamp
+
+        for _ in range(n_steps):
+            self.next_state()
+
+        feedback = self.get_state().copy()
+        feedback['upper_force'] = \
+            math.cos(self.state['angle']) * (signal_to_force(self.signals['left']) + signal_to_force(self.signals['right']))
+        feedback['failed'] = abs(self.state['angle']) > self.critical_angle
+
+        self.signals['left'], self.signals['right'] = signals
+
         return feedback
