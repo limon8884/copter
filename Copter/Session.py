@@ -51,7 +51,10 @@ class TargetParamsGenerator(object):
         x = 2 * iteration / self.pred_session_lenght - 1
         force = self.intercept + self.coef * self.polynom(x)
 
-        return self.constrain(force)
+        d = {
+            'upper_force': self.constrain(force),
+        }
+        return d
 
 
 class Session(object):
